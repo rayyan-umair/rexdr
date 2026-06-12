@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "rexdr-core"
+version = "1.0.0"
+description = "REXDR core shared library - schemas, base classes, entity store, utilities"
+authors = [
+    { name = "Rayyan Umair", email = "rayyanxumair@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "duckdb>=0.10.0",
+    "pydantic>=2.6.0",
+    "pydantic-settings>=2.2.0",
+    "pyzmq>=25.1.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/rayyan-umair/rexdr"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rexdr_core*"]
