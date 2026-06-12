@@ -1,0 +1,352 @@
+# =============================================================================
+# REXDR - Real-time Extended Detection and Response
+# docker-compose.yml - Full platform orchestration
+#
+# Author  : Rayyan Umair
+# Date    : 2026-06-12
+# Purpose : Defines all eight intelligence engines, the frontend,
+#           the nginx gateway, and all shared volumes, networks,
+#           and environment configuration for the REXDR platform.
+#           One command starts the entire platform.
+#
+# Usage   : docker compose up -d
+# =============================================================================
+
+name: rexdr
+
+# =============================================================================
+# Networks
+# =============================================================================
+
+networks:
+  rexdr_internal:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+  rexdr_external:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+
+volumes:
+  rexdr_data:
+    driver: local
+  rexdr_archive:
+    driver: local
+  rexdr_config:
+    driver: local
+  rexdr_cases:
+    driver: local
+
+# =============================================================================
+# Common configuration anchors
+# =============================================================================
+
+x-common-engine: &common-engine
+  restart: unless-stopped
+  networks:
+    - rexdr_internal
+  volumes:
+    - rexdr_data:/data
+    - rexdr_archive:/data/archive
+    - rexdr_config:/config
+    - ./dist:/wheels:ro
+  environment:
+    REXDR_VERSION: "1.0.0"
+    ENVIRONMENT: "production"
+    LOG_LEVEL: "INFO"
+    DATA_DIR: "/data"
+    ARCHIVE_DIR: "/data/archive"
+    ZONES_CONFIG_PATH: "/config/zones.yaml"
+    AI_PROVIDER: "${AI_PROVIDER:-}"
+    AI_API_KEY: "${AI_API_KEY:-}"
+    AI_MODEL: "${AI_MODEL:-}"
+    AI_BASE_URL: "${AI_BASE_URL:-}"
+  healthcheck:
+    interval: 30s
+    timeout: 10s
+    retries: 3
+    start_period: 20s
+
+# =============================================================================
+# Services
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Windows Event Intelligence Engine
+  # ---------------------------------------------------------------------------
+  windows-event:
+    <<: *common-engine
+    container_name: rexdr-windows-event
+    build:
+      context: ./engines/windows_event
+      dockerfile: Dockerfile
+    environment:
+      ENGINE_ID: "windows_event"
+      API_PORT: "8000"
+      ZMQ_PUBLISHER_PORT: "5555"
+      WINRM_TARGETS_PATH: "/config/targets.yaml"
+      WINRM_USERNAME: "${WINRM_USERNAME}"
+      WINRM_PASSWORD: "${WINRM_PASSWORD}"
+      DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
+    ports:
+      - "8000:8000"
+    expose:
+      - "5555"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+
+  # ---------------------------------------------------------------------------
+  # Network Flow Intelligence Engine
+  # ---------------------------------------------------------------------------
+  network-flow:
+    <<: *common-engine
+    container_name: rexdr-network-flow
+    build:
+      context: ./engines/network_flow
+      dockerfile: Dockerfile
+    environment:
+      ENGINE_ID: "network_flow"
+      API_PORT: "8001"
+      CAPTURE_INTERFACE: "${CAPTURE_INTERFACE:-eth0}"
+      DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
+    ports:
+      - "8001:8001"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+
+  # ---------------------------------------------------------------------------
+  # SIEM Correlation Engine
+  # ---------------------------------------------------------------------------
+  siem:
+    <<: *common-engine
+    container_name: rexdr-siem
+    build:
+      context: ./engines/siem
+      dockerfile: Dockerfile
+    environment:
+      ENGINE_ID: "siem"
+      API_PORT: "8002"
+      ZMQ_SUBSCRIBER_PORTS: "5555,5557,5558"
+      SIGMA_RULES_PATH: "/config/sigma_rules"
+      DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
+    ports:
+      - "8002:8002"
+    volumes:
+      - rexdr_data:/data
+      - rexdr_config:/config
+      - ./dist:/wheels:ro
+      - ./config/sigma_rules:/config/sigma_rules:ro
+    depends_on:
+      windows-event:
+        condition: service_healthy
+      dns:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+
+  # ---------------------------------------------------------------------------
+  # DNS Behavioral Intelligence Engine
+  # ---------------------------------------------------------------------------
+  dns:
+    <<: *common-engine
+    container_name: rexdr-dns
+    build:
+      context: ./engines/dns
+      dockerfile: Dockerfile
+    environment:
+      ENGINE_ID: "dns"
+      API_PORT: "8003"
+      ZMQ_PUBLISHER_PORT: "5557"
+      CAPTURE_INTERFACE: "${CAPTURE_INTERFACE:-eth0}"
+      DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
+    ports:
+      - "8003:8003"
+    expose:
+      - "5557"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+
+  # ---------------------------------------------------------------------------
+  # Active Directory Intelligence Engine
+  # ---------------------------------------------------------------------------
+  identity:
+    <<: *common-engine
+    container_name: rexdr-identity
+    build:
+      context: ./engines/identity
+      dockerfile: Dockerfile
+    environment:
+      ENGINE_ID: "identity"
+      API_PORT: "8004"
+      ZMQ_PUBLISHER_PORT: "5558"
+      WINRM_TARGETS_PATH: "/config/targets.yaml"
+      WINRM_USERNAME: "${WINRM_USERNAME}"
+      WINRM_PASSWORD: "${WINRM_PASSWORD}"
+      LDAP_BASE_DN: "${LDAP_BASE_DN}"
+      LDAP_DOMAIN: "${LDAP_DOMAIN}"
+      DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
+    ports:
+      - "8004:8004"
+    expose:
+      - "5558"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+
+  # ---------------------------------------------------------------------------
+  # Incident Response Orchestration Engine
+  # ---------------------------------------------------------------------------
+  response:
+    <<: *common-engine
+    container_name: rexdr-response
+    build:
+      context: ./engines/response
+      dockerfile: Dockerfile
+    environment:
+      ENGINE_ID: "response"
+      API_PORT: "8005"
+      ZMQ_SUBSCRIBER_PORTS: "5555,5557,5558"
+      PLAYBOOKS_PATH: "/config/playbooks"
+      CASES_DIR: "/cases"
+      DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
+    ports:
+      - "8005:8005"
+    volumes:
+      - rexdr_data:/data
+      - rexdr_archive:/data/archive
+      - rexdr_config:/config
+      - rexdr_cases:/cases
+      - ./dist:/wheels:ro
+      - ./config/playbooks:/config/playbooks:ro
+    depends_on:
+      siem:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+
+  # ---------------------------------------------------------------------------
+  # Network Discovery Engine
+  # ---------------------------------------------------------------------------
+  asset-discovery:
+    <<: *common-engine
+    container_name: rexdr-asset-discovery
+    build:
+      context: ./engines/asset_discovery
+      dockerfile: Dockerfile
+    environment:
+      ENGINE_ID: "asset_discovery"
+      API_PORT: "8006"
+      SCAN_TARGETS_PATH: "/config/targets.yaml"
+      SCAN_INTERVAL_MINUTES: "${SCAN_INTERVAL_MINUTES:-60}"
+      DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
+    ports:
+      - "8006:8006"
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+
+  # ---------------------------------------------------------------------------
+  # Vulnerability Intelligence Engine
+  # ---------------------------------------------------------------------------
+  vulnerability:
+    <<: *common-engine
+    container_name: rexdr-vulnerability
+    build:
+      context: ./engines/vulnerability
+      dockerfile: Dockerfile
+    environment:
+      ENGINE_ID: "vulnerability"
+      API_PORT: "8007"
+      NVD_API_KEY: "${NVD_API_KEY:-}"
+      CVE_SYNC_INTERVAL_HOURS: "${CVE_SYNC_INTERVAL_HOURS:-24}"
+      DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
+    ports:
+      - "8007:8007"
+    depends_on:
+      asset-discovery:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+
+  # ---------------------------------------------------------------------------
+  # React Frontend
+  # ---------------------------------------------------------------------------
+  frontend:
+    container_name: rexdr-frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - rexdr_internal
+    expose:
+      - "3000"
+    depends_on:
+      windows-event:
+        condition: service_healthy
+      network-flow:
+        condition: service_healthy
+      siem:
+        condition: service_healthy
+      dns:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+      response:
+        condition: service_healthy
+      asset-discovery:
+        condition: service_healthy
+      vulnerability:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Nginx Gateway
+  # ---------------------------------------------------------------------------
+  nginx:
+    container_name: rexdr-nginx
+    image: nginx:1.25-alpine
+    restart: unless-stopped
+    networks:
+      - rexdr_internal
+      - rexdr_external
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

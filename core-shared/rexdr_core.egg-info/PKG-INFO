@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: rexdr-core
+Version: 1.0.0
+Summary: REXDR core shared library - schemas, base classes, entity store, utilities
+Author-email: Rayyan Umair <rayyanxumair@gmail.com>
+Project-URL: Homepage, https://github.com/rayyan-umair/rexdr
+Requires-Python: >=3.11
+Requires-Dist: duckdb>=0.10.0
+Requires-Dist: pydantic>=2.6.0
+Requires-Dist: pydantic-settings>=2.2.0
+Requires-Dist: pyzmq>=25.1.0
+Requires-Dist: python-dotenv>=1.0.0
