@@ -1,0 +1,81 @@
+# =============================================================================
+# REXDR - Target Configuration
+# targets.yaml.example - Copy to targets.yaml and fill in your values
+#
+# Author  : Rayyan Umair
+# Date    : 2026-06-12
+# Purpose : Defines all Windows machines REXDR collects from.
+#           Priority tiers control collection frequency.
+#           critical - every 60 seconds
+#           high     - every 180 seconds
+#           normal   - every 300 seconds
+# =============================================================================
+
+targets:
+
+  # ---------------------------------------------------------------------------
+  # Domain Controllers - always critical priority
+  # ---------------------------------------------------------------------------
+  - name: DC01
+    ip: 10.10.1.10
+    method: winrm
+    credentials: domain_admin
+    logs:
+      - Security
+      - System
+      - Application
+    priority: critical
+    enabled: true
+
+  - name: DC02
+    ip: 10.10.1.11
+    method: winrm
+    credentials: domain_admin
+    logs:
+      - Security
+      - System
+    priority: critical
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # File and application servers - high priority
+  # ---------------------------------------------------------------------------
+  - name: FILE-SRV01
+    ip: 10.10.2.20
+    method: winrm
+    credentials: svc_rexdr
+    logs:
+      - Security
+    priority: high
+    enabled: true
+
+  - name: APP-SRV01
+    ip: 10.10.2.21
+    method: winrm
+    credentials: svc_rexdr
+    logs:
+      - Security
+      - Application
+    priority: high
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # Staff workstations - normal priority
+  # ---------------------------------------------------------------------------
+  - name: STAFF-PC-001
+    ip: 10.10.3.101
+    method: winrm
+    credentials: domain_read
+    logs:
+      - Security
+    priority: normal
+    enabled: true
+
+  - name: STAFF-PC-002
+    ip: 10.10.3.102
+    method: winrm
+    credentials: domain_read
+    logs:
+      - Security
+    priority: normal
+    enabled: false

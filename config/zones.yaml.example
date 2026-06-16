@@ -1,0 +1,37 @@
+# =============================================================================
+# REXDR - Network Zone Configuration
+# zones.yaml.example - Copy to zones.yaml and fill in your values
+#
+# Author  : Rayyan Umair
+# Date    : 2026-06-12
+# Purpose : Defines all network zones in the monitored environment.
+#           Cross-zone events are automatically elevated in severity.
+#           is_trusted  - internal, expected network segments
+#           is_critical - elevated alert weight for this zone
+# =============================================================================
+
+zones:
+
+  - zone_id:      server_subnet
+    display_name: Server Subnet
+    cidr:         10.10.1.0/24
+    is_trusted:   true
+    is_critical:  true
+
+  - zone_id:      staff_vlan
+    display_name: Staff VLAN
+    cidr:         10.10.3.0/24
+    is_trusted:   true
+    is_critical:  false
+
+  - zone_id:      guest_wifi
+    display_name: Guest WiFi
+    cidr:         192.168.100.0/24
+    is_trusted:   false
+    is_critical:  false
+
+  - zone_id:      dmz
+    display_name: DMZ
+    cidr:         172.16.0.0/24
+    is_trusted:   false
+    is_critical:  true
