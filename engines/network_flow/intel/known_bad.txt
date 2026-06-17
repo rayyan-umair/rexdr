@@ -1,0 +1,15 @@
+# =============================================================================
+# REXDR - Known-Bad Threat Intelligence Indicators
+# known_bad.txt
+#
+# Author  : Rayyan Umair
+# Date    : 2026-06-17
+# Purpose : One IP address or domain per line. Lines starting with #
+#           are comments and ignored. This is a starter list - replace
+#           with a live threat intel feed integration in production.
+# =============================================================================
+
+# Example known-bad indicators - replace with real threat intel data
+# 198.51.100.23
+# 203.0.113.45
+# malicious-c2-domain.example
