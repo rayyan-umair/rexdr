@@ -1,0 +1,70 @@
+[
+    {
+        "engine_id": "windows_event",
+        "event_id": "evt-001",
+        "timestamp": "2026-06-12T10:00:00Z",
+        "source_ip": "10.10.3.145",
+        "destination_host": "DC01",
+        "username": "jsmith",
+        "event_type": "failed_logon",
+        "event_code": "4625",
+        "description": "Failed account logon attempt | user=jsmith | source=10.10.3.145",
+        "raw_data": {
+            "event_data": {
+                "TargetUserName": "jsmith",
+                "IpAddress": "10.10.3.145"
+            }
+        },
+        "tags": ["log:security", "type:failed_logon"],
+        "severity": "low"
+    },
+    {
+        "engine_id": "windows_event",
+        "event_id": "evt-002",
+        "timestamp": "2026-06-12T10:01:30Z",
+        "source_ip": "10.10.3.145",
+        "destination_host": "FILE-SRV01",
+        "username": "jsmith",
+        "event_type": "successful_logon",
+        "event_code": "4624",
+        "description": "Successful account logon | user=jsmith | source=10.10.3.145",
+        "raw_data": {
+            "event_data": {
+                "TargetUserName": "jsmith",
+                "IpAddress": "10.10.3.145",
+                "LogonType": "3"
+            }
+        },
+        "tags": ["log:security", "type:successful_logon"],
+        "severity": "info"
+    },
+    {
+        "engine_id": "network_flow",
+        "event_id": "evt-003",
+        "timestamp": "2026-06-12T10:15:00Z",
+        "source_ip": "10.10.3.145",
+        "destination_ip": "198.51.100.23",
+        "event_type": "network_flow",
+        "description": "Flow 10.10.3.145:51234 -> 198.51.100.23:443 (TCP) high outbound transfer",
+        "raw_data": {
+            "bytes_sent": 157286400
+        },
+        "tags": ["protocol:tcp", "external"],
+        "severity": "high"
+    },
+    {
+        "engine_id": "dns",
+        "event_id": "evt-004",
+        "timestamp": "2026-06-12T10:14:45Z",
+        "source_ip": "10.10.3.145",
+        "destination_ip": "198.51.100.23",
+        "event_type": "dns_query",
+        "description": "High entropy DNS query observed",
+        "raw_data": {
+            "query_name": "x7f9q2k1m8.malicious-c2-domain.example",
+            "entropy": 4.6
+        },
+        "tags": ["high_entropy"],
+        "severity": "high"
+    }
+]
