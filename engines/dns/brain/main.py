@@ -31,12 +31,12 @@ import zmq.asyncio
 # -- Internal ----------------------------------------------------------------
 from rexdr_core.entity_store import EntityStore
 from rexdr_core.identity import ENGINE_ZMQ_TOPICS, EngineID
-from dns.api import create_app
-from dns.config import settings
-from dns.database import DnsDatabase
-from dns.detections import DnsDetections
-from dns.entity import DnsEntityManager
-from dns.inspector import DnsInspector
+from dns.brain.api import create_app
+from dns.brain.config import settings
+from dns.brain.database import DnsDatabase
+from dns.brain.detections import DnsDetections
+from dns.brain.entity import DnsEntityManager
+from dns.brain.inspector import DnsInspector
 
 # ============================================================================
 

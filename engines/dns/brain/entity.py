@@ -24,7 +24,7 @@ from rexdr_core.entity_store import EntityStore
 from rexdr_core.formula import severity_to_contribution, stack_contributions
 from rexdr_core.identity import EngineID
 from rexdr_core.schemas import Detection, EngineObservation, EntityType
-from dns.database import DnsDatabase
+from dns.brain.database import DnsDatabase
 
 # ============================================================================
 
