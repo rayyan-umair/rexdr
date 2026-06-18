@@ -1,0 +1,14 @@
+playbook_id: port_scan_response
+name: Port Scan Investigation
+
+match:
+  detection_codes:
+    - STRIKE-001
+  mitre_techniques:
+    - T1046
+  min_severity: high
+
+actions:
+  - type: log_only
+  - type: alert_administrator
+    message: "Port scan reconnaissance detected from internal host. Manual investigation recommended."

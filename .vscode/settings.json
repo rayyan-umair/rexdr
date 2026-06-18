@@ -7,8 +7,10 @@
         "engines/identity",
         "engines/response",
         "engines/asset_discovery",
-        "engines/vulnerability"
+        "engines/vulnerability",
+        "engines/response",
     ],
     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
     "python-envs.defaultEnvManager": "ms-python.python:system"
 }
+

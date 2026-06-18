@@ -1,0 +1,16 @@
+playbook_id: kerberoasting_response
+name: Kerberoasting Containment
+
+match:
+  detection_codes:
+    - AD-001
+  mitre_techniques:
+    - T1558.003
+    - T1558.004
+  min_severity: high
+
+actions:
+  - type: disable_ad_account
+  - type: revoke_kerberos_tickets
+  - type: alert_administrator
+    message: "Kerberoasting attack detected and contained. Compromised account disabled and tickets revoked."

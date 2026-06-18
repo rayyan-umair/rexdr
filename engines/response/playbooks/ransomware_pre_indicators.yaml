@@ -1,0 +1,17 @@
+playbook_id: ransomware_pre_indicators_response
+name: Ransomware Pre-Indicator Containment
+
+match:
+  detection_codes:
+    - LC-005
+    - AD-002
+  mitre_techniques:
+    - T1543.003
+    - T1098
+  min_severity: critical
+
+actions:
+  - type: disable_ad_account
+  - type: revoke_kerberos_tickets
+  - type: alert_administrator
+    message: "Ransomware pre-indicator chain detected - service installation combined with privileged group changes. Immediate review required."
