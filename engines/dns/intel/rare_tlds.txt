@@ -1,0 +1,26 @@
+# =============================================================================
+# REXDR - Rare/Abused TLD List
+# rare_tlds.txt
+#
+# Author  : Rayyan Umair
+# Date    : 2026-06-16
+# Purpose : TLDs disproportionately associated with malicious
+#           infrastructure due to low registration cost and minimal
+#           verification. One TLD per line, no leading dot.
+# =============================================================================
+
+tk
+ml
+ga
+cf
+gq
+xyz
+top
+work
+click
+loan
+win
+icu
+buzz
+party
+review

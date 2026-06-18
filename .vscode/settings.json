@@ -1,0 +1,13 @@
+{
+    "python.analysis.extraPaths": [
+        "engines/windows_event",
+        "engines/network_flow",
+        "engines/siem",
+        "engines/dns/brain",
+        "engines/identity",
+        "engines/response",
+        "engines/asset_discovery",
+        "engines/vulnerability"
+    ],
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe"
+}
