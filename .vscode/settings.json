@@ -1,5 +1,6 @@
 {
     "python.analysis.extraPaths": [
+        "${workspaceFolder}",
         "engines/windows_event",
         "engines/network_flow",
         "engines/siem",
@@ -7,10 +8,8 @@
         "engines/identity",
         "engines/response",
         "engines/asset_discovery",
-        "engines/vulnerability",
-        "engines/response",
+        "engines/vulnerability"
     ],
     "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
     "python-envs.defaultEnvManager": "ms-python.python:system"
 }
-
