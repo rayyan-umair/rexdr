@@ -1,0 +1,10 @@
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0
+pyzmq>=25.1.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+duckdb>=0.10.0
+python-dotenv>=1.0.0
+pywinrm>=0.4.3
+pyyaml>=6.0.1
+ldap3>=2.9.1

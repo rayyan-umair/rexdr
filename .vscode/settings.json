@@ -9,5 +9,6 @@
         "engines/asset_discovery",
         "engines/vulnerability"
     ],
-    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe"
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }
