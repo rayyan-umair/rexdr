@@ -33,8 +33,8 @@ import statistics
 from rexdr_core.formula import severity_to_contribution
 from rexdr_core.identity import EngineID
 from rexdr_core.schemas import AlertSeverity, Detection, EntityType
-from dns.config import settings
-from dns.database import DnsDatabase
+from dns.brain.config import settings
+from dns.brain.database import DnsDatabase
 
 # ============================================================================
 
