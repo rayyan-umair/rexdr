@@ -258,14 +258,13 @@ services:
       SCAN_TARGETS_PATH: "/config/targets.yaml"
       SCAN_INTERVAL_MINUTES: "${SCAN_INTERVAL_MINUTES:-60}"
       DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
-    ports:
-      - "8006:8006"
     cap_add:
       - NET_ADMIN
-      - NET_RAW
-    healthcheck:
+      - NET_RAW    
+    network_mode: host
+    healthcheck: 
       test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
-
+    
   # ---------------------------------------------------------------------------
   # Vulnerability Intelligence Engine
   # ---------------------------------------------------------------------------
