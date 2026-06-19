@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install rexdr_core wheel first - it is the foundation
-COPY /wheels/rexdr_core-1.0.0-py3-none-any.whl /tmp/
+COPY rexdr_core-1.0.0-py3-none-any.whl /tmp/
 RUN pip install --no-cache-dir /tmp/rexdr_core-1.0.0-py3-none-any.whl
 
 # Install engine dependencies

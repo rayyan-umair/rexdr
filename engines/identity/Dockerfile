@@ -29,7 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY /wheels/rexdr_core-1.0.0-py3-none-any.whl /tmp/
+COPY rexdr_core-1.0.0-py3-none-any.whl /tmp/
 RUN pip install --no-cache-dir /tmp/rexdr_core-1.0.0-py3-none-any.whl
 
 COPY requirements.txt .
