@@ -3,7 +3,7 @@
 # docker-compose.yml - Full platform orchestration
 #
 # Author  : Rayyan Umair
-# Date    : 2026-06-12
+# Date    : 2026-06-21
 # Purpose : Defines all eight intelligence engines, the frontend,
 #           the nginx gateway, and all shared volumes, networks,
 #           and environment configuration for the REXDR platform.
@@ -326,6 +326,7 @@ services:
       start_period: 30s
 
   # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
   # Nginx Gateway
   # ---------------------------------------------------------------------------
   nginx:
@@ -340,9 +341,27 @@ services:
       - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/proxy_params.conf:/etc/nginx/proxy_params.conf:ro
+      - ./nginx/proxy_ws_params.conf:/etc/nginx/proxy_ws_params.conf:ro
       - ./nginx/certs:/etc/nginx/certs:ro
     depends_on:
       frontend:
+        condition: service_healthy
+      windows-event:
+        condition: service_healthy
+      network-flow:
+        condition: service_healthy
+      siem:
+        condition: service_healthy
+      dns:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+      response:
+        condition: service_healthy
+      asset-discovery:
+        condition: service_healthy
+      vulnerability:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/health"]
