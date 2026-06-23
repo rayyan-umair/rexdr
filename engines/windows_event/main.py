@@ -34,7 +34,7 @@ import zmq
 import zmq.asyncio
 
 # -- Internal ----------------------------------------------------------------
-from rexdr_core.entity_store import EntityStore
+from rexdr_core.entity_store_client import EntityStoreClient
 from rexdr_core.identity import ENGINE_ZMQ_TOPICS, EngineID
 from windows_event.api import create_app
 from windows_event.config import settings
@@ -56,7 +56,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 db            = WindowsEventDatabase(data_dir=settings.data_dir)
-entity_store  = EntityStore(data_dir=settings.data_dir)
+entity_store  = EntityStoreClient(base_url="http://entity-store:8008")
 normalizer    = WindowsEventNormalizer()
 detector      = WindowsEventDetections(db=db)
 entity_mgr    = WindowsEventEntityManager(db=db, entity_store=entity_store)

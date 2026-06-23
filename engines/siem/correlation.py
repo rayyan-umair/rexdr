@@ -3,13 +3,14 @@ rexdr - SIEM Correlation Engine
 correlation.py - Cross-engine attack chain builder
 
 Author  : Rayyan Umair
-Date    : 2026-06-15
+Date    : 2026-06-23
 Purpose : The core differentiator of REXDR. Builds cross-engine attack
           chains by correlating detections from multiple engines against
           the same entity within a time window. Generates the 5W+H
-          investigation narrative for every chain. This is what makes
-          REXDR an upgrade over eight standalone tools - no individual
-          engine can see what this module sees.
+          investigation narrative for every chain. Candidate detection
+          data now comes from engine_client.py over HTTP rather than
+          DuckDB ATTACH - the chain-building logic itself is unchanged,
+          only the data access method changed.
 Contact : rayyanxumair@gmail.com
 GitHub  : github.com/rayyan-umair/rexdr
 
@@ -20,14 +21,14 @@ GitHub  : github.com/rayyan-umair/rexdr
 
 # -- Standard Library --------------------------------------------------------
 import logging
-from datetime import datetime, timezone
 
 # -- Internal ----------------------------------------------------------------
-from rexdr_core.entity_store import EntityStore
+from rexdr_core.entity_store_client import EntityStoreClient
 from rexdr_core.identity import EngineID
 from rexdr_core.schemas import AttackChain, ChainSeverity, Detection, EntityType
 from siem.config import settings
 from siem.database import SiemDatabase
+from siem.engine_client import EngineClient
 
 # ============================================================================
 
@@ -53,9 +54,15 @@ class ChainBuilder:
     different and more severe signal - a campaign, not a blip.
     """
 
-    def __init__(self, db: SiemDatabase, entity_store: EntityStore) -> None:
+    def __init__(
+        self,
+        db: SiemDatabase,
+        entity_store: EntityStoreClient,
+        engine_client: EngineClient,
+    ) -> None:
         self.db = db
         self.entity_store = entity_store
+        self.engine_client = engine_client
 
     def run_correlation_pass(self) -> list[AttackChain]:
         """
@@ -63,7 +70,7 @@ class ChainBuilder:
         detections. Called periodically by the pipeline on
         chain_check_interval_seconds. Returns any newly created chains.
         """
-        candidate_entities = self.db.get_entities_with_recent_detections(
+        candidate_entities = self.engine_client.get_entities_with_recent_detections(
             window_minutes=settings.correlation_window_minutes,
         )
 
@@ -95,7 +102,7 @@ class ChainBuilder:
         if self.db.chain_exists_for_entity(entity_id):
             return None
 
-        detection_rows = self.db.get_cross_engine_detections(
+        detection_rows = self.engine_client.get_cross_engine_detections(
             entity_id      = entity_id,
             window_minutes = settings.correlation_window_minutes,
         )

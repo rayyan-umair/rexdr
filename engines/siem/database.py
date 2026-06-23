@@ -3,13 +3,14 @@ rexdr - SIEM Correlation Engine
 database.py - DuckDB database layer for the SIEM engine
 
 Author  : Rayyan Umair
-Date    : 2026-06-15
+Date    : 2026-06-23
 Purpose : Extends BaseDatabase with the SIEM engine schema. Owns the
           siem.duckdb file - storing Sigma matches and attack chains.
-          This is the only engine that calls attach_all_engines() to
-          enable cross-engine SQL correlation via DuckDB ATTACH.
-          All cross-engine queries that join data from multiple
-          engine databases live in this file.
+          Cross-engine correlation data now comes from engine_client.py
+          over HTTP rather than DuckDB ATTACH - DuckDB does not support
+          safe concurrent multi-process access to a file another
+          process holds open for writing, so this engine no longer
+          attaches to any other engine's database file directly.
 Contact : rayyanxumair@gmail.com
 GitHub  : github.com/rayyan-umair/rexdr
 
@@ -37,8 +38,9 @@ class SiemDatabase(BaseDatabase):
     """
     DuckDB database layer for the SIEM Correlation engine.
     Extends BaseDatabase and implements schema_init().
-    Attaches all other engine databases as read-only for
-    cross-engine correlation queries.
+    Owns siem.duckdb exclusively - this engine no longer attaches to
+    any other engine's database file. Cross-engine data is fetched via
+    engine_client.py over HTTP instead.
     """
 
     def __init__(self, data_dir) -> None:
@@ -171,90 +173,6 @@ class SiemDatabase(BaseDatabase):
                 updated_at    = ?
             WHERE chain_id = ?
         """, [case_file_id, datetime.now(timezone.utc), chain_id])
-
-    # -------------------------------------------------------------------------
-    # Cross-engine correlation queries
-    # -------------------------------------------------------------------------
-
-    def get_cross_engine_detections(
-        self,
-        entity_id: str,
-        window_minutes: int,
-    ) -> list[dict]:
-        """
-        Query detections for an entity across ALL attached engine databases
-        within the correlation window. This is the core cross-engine query
-        that makes attack chain detection possible. Uses UNION ALL across
-        every attached engine's detections table.
-        """
-        engine_tables = [
-            ("windows_event", "windows_event"),
-            ("network_flow", "network_flow"),
-            ("dns", "dns"),
-            ("identity", "identity"),
-        ]
-
-        union_parts = []
-        for engine_name, db_alias in engine_tables:
-            union_parts.append(f"""
-                SELECT
-                    detection_id, detection_code, '{engine_name}' as engine_id,
-                    timestamp, severity, title, description,
-                    entity_id, entity_type, mitre_tactic, mitre_technique
-                FROM {db_alias}.detections
-                WHERE entity_id = ?
-                AND timestamp >= NOW() - INTERVAL '{window_minutes} minutes'
-                AND status = 'open'
-            """)
-
-        query = " UNION ALL ".join(union_parts) + " ORDER BY timestamp ASC"
-        params = [entity_id] * len(engine_tables)
-
-        try:
-            rows = self.conn.execute(query, params).fetchall()
-        except Exception as e:
-            logger.warning(
-                "Cross-engine query failed - entity=%s error=%s",
-                entity_id, str(e),
-            )
-            return []
-
-        columns = [
-            "detection_id", "detection_code", "engine_id", "timestamp",
-            "severity", "title", "description", "entity_id",
-            "entity_type", "mitre_tactic", "mitre_technique"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
-
-    def get_entities_with_recent_detections(
-        self,
-        window_minutes: int,
-    ) -> list[str]:
-        """
-        Get all distinct entity IDs that have any open detection across
-        all attached engines within the window. Used as the candidate
-        pool for the chain builder's correlation pass.
-        """
-        engine_tables = ["windows_event", "network_flow", "dns", "identity"]
-
-        union_parts = [
-            f"""
-                SELECT DISTINCT entity_id FROM {table}.detections
-                WHERE timestamp >= NOW() - INTERVAL '{window_minutes} minutes'
-                AND status = 'open'
-            """
-            for table in engine_tables
-        ]
-
-        query = " UNION ".join(union_parts)
-
-        try:
-            rows = self.conn.execute(query).fetchall()
-        except Exception as e:
-            logger.warning("Entity pool query failed - error=%s", str(e))
-            return []
-
-        return [row[0] for row in rows]
 
     # -------------------------------------------------------------------------
     # Read operations

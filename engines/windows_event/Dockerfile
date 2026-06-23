@@ -54,7 +54,7 @@ COPY --from=harvester-builder /build/rexdr-harvester /usr/local/bin/rexdr-harves
 RUN chmod +x /usr/local/bin/rexdr-harvester
 
 # Copy engine source
-COPY . .
+COPY . ./windows_event
 
 # Create data directories
 RUN mkdir -p /data /data/archive /config

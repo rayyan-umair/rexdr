@@ -28,8 +28,8 @@ from pydantic import BaseModel
 # -- Internal ----------------------------------------------------------------
 from rexdr_core.identity import METADATA, VERSION, EngineID
 from rexdr_core.schemas import AlertSeverity
-from dns.brain.config import settings
-from dns.brain.database import DnsDatabase
+from dns.config import settings
+from dns.database import DnsDatabase
 
 # ============================================================================
 

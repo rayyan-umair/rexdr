@@ -38,7 +38,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY --from=collector-builder /build/rexdr-ad-collector /usr/local/bin/rexdr-ad-collector
 RUN chmod +x /usr/local/bin/rexdr-ad-collector
 
-COPY . .
+COPY . ./identity
 
 RUN mkdir -p /data /data/archive /config
 

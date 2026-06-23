@@ -32,7 +32,7 @@ import zmq
 import zmq.asyncio
 
 # -- Internal ----------------------------------------------------------------
-from rexdr_core.entity_store import EntityStore
+from rexdr_core.entity_store_client import EntityStoreClient
 from rexdr_core.identity import ENGINE_ZMQ_TOPICS, EngineID
 from identity.api import create_app
 from identity.config import settings
@@ -47,7 +47,7 @@ logging.basicConfig(level=settings.log_level, format=settings.log_format)
 logger = logging.getLogger(__name__)
 
 db            = IdentityDatabase(data_dir=settings.data_dir)
-entity_store  = EntityStore(data_dir=settings.data_dir)
+entity_store  = EntityStoreClient(base_url="http://entity-store:8008")
 detector      = IdentityDetections(db=db)
 entity_mgr    = IdentityEntityManager(db=db, entity_store=entity_store)
 snapshot_engine = DomainSnapshotEngine(db=db)

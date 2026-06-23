@@ -3,18 +3,25 @@
 # Dockerfile
 #
 # Author  : Rayyan Umair
-# Date    : 2026-06-16
+# Date    : 2026-06-23
 # Stage 1 : Build the Go sniffer binary
 # Stage 2 : Python intelligence layer with rexdr_core wheel installed
 # =============================================================================
 
 FROM golang:1.21-alpine AS sniffer-builder
 
+# gopacket's pcap bindings require cgo, which needs a C compiler and
+# libpcap's development headers to link against. CGO_ENABLED=0 (used
+# by the other Go binaries in this platform that don't touch pcap)
+# would leave gopacket's cgo-defined symbols unresolved - this is the
+# one Go build in REXDR that must run with cgo enabled.
+RUN apk add --no-cache gcc musl-dev libpcap-dev
+
 WORKDIR /build
 COPY sniffer/go.mod sniffer/go.sum ./
 RUN go mod download
 COPY sniffer/ ./
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-w -s" -o rexdr-dns-sniffer .
 
 FROM python:3.11-slim
@@ -25,8 +32,11 @@ LABEL version="1.0.0"
 
 WORKDIR /app
 
+# libpcap (runtime shared library, not -dev) is required here since the
+# sniffer binary copied in below is cgo-linked against it.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    libpcap0.8 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY rexdr_core-1.0.0-py3-none-any.whl /tmp/

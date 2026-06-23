@@ -1,15 +1,15 @@
 # =============================================================================
-# REXDR - SIEM Correlation Engine
+# REXDR - Entity Store Service
 # Dockerfile
 #
 # Author  : Rayyan Umair
-# Date    : 2026-06-15
+# Date    : 2026-06-23
 # =============================================================================
 
 FROM python:3.11-slim
 
 LABEL maintainer="Rayyan Umair <rayyanxumair@gmail.com>"
-LABEL description="REXDR SIEM Correlation Engine"
+LABEL description="REXDR Entity Store Service - shared unified entity registry"
 LABEL version="1.0.0"
 
 WORKDIR /app
@@ -24,13 +24,13 @@ RUN pip install --no-cache-dir /tmp/rexdr_core-1.0.0-py3-none-any.whl
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . ./siem
+COPY . ./entity_store
 
-RUN mkdir -p /data /data/archive /config/sigma_rules /app/replay
+RUN mkdir -p /data
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:8002/health || exit 1
+    CMD curl -f http://localhost:8008/health || exit 1
 
-EXPOSE 8002
+EXPOSE 8008
 
-CMD ["python", "-m", "siem.main"]
+CMD ["python", "-m", "entity_store.main"]

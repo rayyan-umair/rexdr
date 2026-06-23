@@ -29,14 +29,13 @@ import zmq
 import zmq.asyncio
 
 # -- Internal ----------------------------------------------------------------
-from rexdr_core.entity_store import EntityStore
-from rexdr_core.identity import ENGINE_ZMQ_TOPICS, EngineID
-from dns.brain.api import create_app
-from dns.brain.config import settings
-from dns.brain.database import DnsDatabase
-from dns.brain.detections import DnsDetections
-from dns.brain.entity import DnsEntityManager
-from dns.brain.inspector import DnsInspector
+from rexdr_core.entity_store_client import EntityStoreClient
+from dns.api import create_app
+from dns.config import settings
+from dns.database import DnsDatabase
+from dns.detections import DnsDetections
+from dns.entity import DnsEntityManager
+from dns.inspector import DnsInspector
 
 # ============================================================================
 
@@ -44,7 +43,7 @@ logging.basicConfig(level=settings.log_level, format=settings.log_format)
 logger = logging.getLogger(__name__)
 
 db           = DnsDatabase(data_dir=settings.data_dir)
-entity_store = EntityStore(data_dir=settings.data_dir)
+entity_store  = EntityStoreClient(base_url="http://entity-store:8008")
 inspector    = DnsInspector()
 detector     = DnsDetections(db=db)
 entity_mgr   = DnsEntityManager(db=db, entity_store=entity_store)

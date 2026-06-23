@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 # -- Internal ----------------------------------------------------------------
 from rexdr_core.identity import EngineID
 from rexdr_core.schemas import AlertSeverity, NormalizedTelemetryPayload
-from dns.brain.config import settings
+from dns.config import settings
 
 # ============================================================================
 

@@ -3,15 +3,16 @@ rexdr - SIEM Correlation Engine
 main.py - Engine entry point and correlation pipeline
 
 Author  : Rayyan Umair
-Date    : 2026-06-15
+Date    : 2026-06-23
 Purpose : Entry point for the SIEM Correlation engine. Initializes
-          all components, attaches to every other engine's database
-          for cross-engine SQL correlation, subscribes to ZeroMQ
-          publishers, and runs two background tasks - the Sigma
-          matching pipeline and the chain correlation pass.
-          This is the engine where REXDR's core differentiator
-          comes to life - detections from isolated engines become
-          unified attack chains here.
+          all components, subscribes to ZeroMQ publishers, and runs
+          two background tasks - the Sigma matching pipeline and the
+          chain correlation pass. Cross-engine correlation now queries
+          every other engine's REST API via engine_client.py instead
+          of attaching to their DuckDB files directly - DuckDB does
+          not support safe concurrent multi-process file access, which
+          made the original ATTACH-based design unsafe across
+          separate engine containers.
 Contact : rayyanxumair@gmail.com
 GitHub  : github.com/rayyan-umair/rexdr
 
@@ -33,11 +34,12 @@ import zmq
 import zmq.asyncio
 
 # -- Internal ----------------------------------------------------------------
-from rexdr_core.entity_store import EntityStore
+from rexdr_core.entity_store_client import EntityStoreClient
 from siem.api import create_app
 from siem.config import settings
 from siem.correlation import ChainBuilder
 from siem.database import SiemDatabase
+from siem.engine_client import EngineClient
 from siem.replay import ReplayEngine
 from siem.sigma_engine import SigmaEngine
 
@@ -54,9 +56,10 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 db             = SiemDatabase(data_dir=settings.data_dir)
-entity_store   = EntityStore(data_dir=settings.data_dir)
+entity_store   = EntityStoreClient(base_url="http://entity-store:8008")
+engine_client  = EngineClient()
 sigma_engine   = SigmaEngine()
-chain_builder  = ChainBuilder(db=db, entity_store=entity_store)
+chain_builder  = ChainBuilder(db=db, entity_store=entity_store, engine_client=engine_client)
 replay_engine  = ReplayEngine(sigma_engine=sigma_engine)
 
 # ZeroMQ context and subscriber socket
@@ -105,8 +108,8 @@ async def listen_for_detections() -> None:
     Background task that listens for incoming detections published
     by other engines via ZeroMQ. Stores Sigma matches when a detection
     matches a loaded rule. The chain builder operates independently
-    via the DuckDB ATTACH cross-engine queries, not directly from this
-    stream - this stream is for Sigma rule matching only.
+    via engine_client.py HTTP calls, not directly from this stream -
+    this stream is for Sigma rule matching only.
     """
     if not zmq_subscriber:
         return
@@ -138,7 +141,10 @@ async def run_correlation_loop() -> None:
     The core correlation pipeline loop. Runs the chain builder's
     correlation pass on chain_check_interval_seconds. This is where
     cross-engine attack chains are formed - REXDR's primary
-    differentiating output.
+    differentiating output. Each pass makes a small number of HTTP
+    calls to other engines' /detections endpoints rather than a
+    single SQL join, since DuckDB cannot safely support that across
+    separate processes.
     """
     logger.info("Correlation pipeline started")
 
@@ -206,13 +212,6 @@ async def lifespan(app):
     db.connect()
     logger.info("Database connected")
 
-    # Attach all other engine databases for cross-engine correlation
-    db.attach_all_engines()
-    logger.info("Cross-engine databases attached")
-
-    entity_store.connect()
-    logger.info("Entity store connected")
-
     await init_zmq()
 
     zmq_task = asyncio.create_task(listen_for_detections())
@@ -242,7 +241,7 @@ async def lifespan(app):
     if zmq_context:
         zmq_context.term()
 
-    entity_store.close()
+    engine_client.close()
     db.close()
 
     logger.info("=== SIEM engine stopped ===")

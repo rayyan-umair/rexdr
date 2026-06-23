@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 import uvicorn
 
 # -- Internal ----------------------------------------------------------------
-from rexdr_core.entity_store import EntityStore
+from rexdr_core.entity_store_client import EntityStoreClient
 from asset_discovery.api import create_app
 from asset_discovery.config import settings
 from asset_discovery.database import AssetDiscoveryDatabase
@@ -42,7 +42,7 @@ logging.basicConfig(level=settings.log_level, format=settings.log_format)
 logger = logging.getLogger(__name__)
 
 db           = AssetDiscoveryDatabase(data_dir=settings.data_dir)
-entity_store = EntityStore(data_dir=settings.data_dir)
+entity_store  = EntityStoreClient(base_url="http://entity-store:8008")
 scanner      = NetworkScanner()
 detector     = AssetDiscoveryDetections()
 entity_mgr   = AssetDiscoveryEntityManager(db=db, entity_store=entity_store)

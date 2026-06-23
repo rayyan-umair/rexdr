@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir /tmp/rexdr_core-1.0.0-py3-none-any.whl
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY . ./network_flow
 
 RUN mkdir -p /data /data/archive /config /app/intel
 

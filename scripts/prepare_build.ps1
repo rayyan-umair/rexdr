@@ -20,6 +20,7 @@ if (-not (Test-Path $wheelSource)) {
 }
 
 $engines = @(
+    "engines\entity_store",
     "engines\windows_event",
     "engines\network_flow",
     "engines\siem",

@@ -32,7 +32,7 @@ from queue import Queue, Empty
 import uvicorn
 
 # -- Internal ----------------------------------------------------------------
-from rexdr_core.entity_store import EntityStore
+from rexdr_core.entity_store_client import EntityStoreClient
 from network_flow.api import create_app
 from network_flow.capture import PacketCapture
 from network_flow.config import settings
@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 db            = NetworkFlowDatabase(data_dir=settings.data_dir)
-entity_store  = EntityStore(data_dir=settings.data_dir)
+entity_store  = EntityStoreClient(base_url="http://entity-store:8008")
 inspector     = FlowInspector()
 detector      = NetworkFlowDetections(db=db)
 entity_mgr    = NetworkFlowEntityManager(db=db, entity_store=entity_store)

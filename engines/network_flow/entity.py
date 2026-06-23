@@ -22,7 +22,7 @@ GitHub  : github.com/rayyan-umair/rexdr
 import logging
 
 # -- Internal ----------------------------------------------------------------
-from rexdr_core.entity_store import EntityStore
+from rexdr_core.entity_store_client import EntityStoreClient
 from rexdr_core.formula import severity_to_contribution, stack_contributions
 from rexdr_core.identity import EngineID
 from rexdr_core.schemas import Detection, EngineObservation, EntityType
@@ -44,7 +44,7 @@ class NetworkFlowEntityManager:
     def __init__(
         self,
         db: NetworkFlowDatabase,
-        entity_store: EntityStore,
+        entity_store: EntityStoreClient,
     ) -> None:
         self.db = db
         self.entity_store = entity_store
