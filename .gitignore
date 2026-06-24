@@ -1,0 +1,57 @@
+# =============================================================================
+# REXDR - Git Ignore Rules
+#
+# Author  : Rayyan Umair
+# Date    : 2026-06-24
+# Purpose : Prevents secrets, credentials, real network topology, and
+#           generated/build artifacts from being committed to a public
+#           repository. The .example files for config stay tracked as
+#           templates - the real, filled-in versions never do.
+# =============================================================================
+
+# -- Secrets and real configuration - NEVER commit these ---------------------
+.env
+.env.local
+config/targets.yaml
+config/zones.yaml
+
+# -- Python ---------------------------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+.venv/
+venv/
+*.whl
+*.tar.gz
+build/
+dist/
+core-shared/dist/
+core-shared/build/
+
+# -- Node / Frontend -------------------------------------------------------------
+node_modules/
+frontend/dist/
+frontend/.env.local
+
+# -- Go build artifacts -----------------------------------------------------------
+*.exe
+rexdr-harvester
+rexdr-dns-sniffer
+rexdr-ad-collector
+
+# -- Docker / runtime data ---------------------------------------------------------
+*.duckdb
+*.duckdb.wal
+data/
+cases/
+
+# -- IDE / OS ---------------------------------------------------------------------
+.vscode/settings.json
+.DS_Store
+Thumbs.db
+
+# -- Wheels copied into engine build contexts by prepare_build scripts ----------
+engines/*/rexdr_core-*.whl
+engines/*/*/rexdr_core-*.whl

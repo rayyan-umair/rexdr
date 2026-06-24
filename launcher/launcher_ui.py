@@ -84,6 +84,8 @@ class RexdrLauncher(tk.Tk):
         self._build_style()
         self._build_layout()
 
+        self._dashboard_active = False
+
         existing_env = self.config_writer.read_env()
         if existing_env.get("WINRM_USERNAME"):
             self._show_dashboard()
@@ -143,6 +145,7 @@ class RexdrLauncher(tk.Tk):
     # -------------------------------------------------------------------------
 
     def _show_wizard(self) -> None:
+        self._dashboard_active = False
         self._clear_container()
         existing = self.config_writer.read_env()
 
@@ -228,6 +231,7 @@ class RexdrLauncher(tk.Tk):
     # -------------------------------------------------------------------------
 
     def _show_dashboard(self) -> None:
+        self._dashboard_active = True
         self._clear_container()
 
         top = ttk.Frame(self.container, style="TFrame", padding=(24, 20, 24, 12))
@@ -362,7 +366,13 @@ class RexdrLauncher(tk.Tk):
     # -------------------------------------------------------------------------
 
     def _poll_status(self) -> None:
+        if not self._dashboard_active:
+            return
+
         statuses = self.engine_manager.get_status()
+
+        if not self._dashboard_active:
+            return
 
         for service, status in statuses.items():
             row = self.status_rows.get(service)
