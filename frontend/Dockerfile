@@ -26,6 +26,8 @@ LABEL version="1.0.0"
 
 WORKDIR /app
 
+RUN apk add --no-cache curl
+
 RUN npm install -g serve
 
 COPY --from=build /app/dist ./dist
@@ -33,6 +35,6 @@ COPY --from=build /app/dist ./dist
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget -q -O- http://localhost:3000 || exit 1
+    CMD curl -f http://localhost:3000 || exit 1
 
 CMD ["serve", "-s", "dist", "-l", "3000"]
