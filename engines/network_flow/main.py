@@ -77,17 +77,20 @@ def capture_worker() -> None:
     """
     Runs packet capture in a dedicated thread since scapy's sniff()
     is a blocking call. Completed flows are pushed onto flow_queue
-    for the async pipeline to consume.
+    via callback as they expire, since sniff() itself never returns
+    in live mode.
     """
     logger.info("Capture worker thread started")
     capture = PacketCapture()
 
+    def on_flow(flow: dict) -> None:
+        try:
+            flow_queue.put_nowait(flow)
+        except Exception:
+            logger.warning("Flow queue full - dropping flow")
+
     try:
-        for flow in capture.run():
-            try:
-                flow_queue.put_nowait(flow)
-            except Exception:
-                logger.warning("Flow queue full - dropping flow")
+        capture.run(on_flow)
     except Exception as e:
         logger.error("Capture worker error - error=%s", str(e))
 

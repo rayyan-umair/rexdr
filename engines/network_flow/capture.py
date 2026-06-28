@@ -18,6 +18,7 @@ GitHub  : github.com/rayyan-umair/rexdr
 """
 
 # -- Standard Library --------------------------------------------------------
+import threading
 import logging
 import time
 import uuid
@@ -117,21 +118,26 @@ class PacketCapture:
     def __init__(self) -> None:
         self.active_flows: dict[str, ActiveFlow] = {}
 
-    def run(self):
+    def run(self, flow_callback) -> None:
         """
-        Generator that yields completed flow dicts.
-        Runs in live capture mode unless pcap_replay_path is configured.
+        Starts capture and calls flow_callback(flow_dict) for every
+        completed flow. Runs in live capture mode unless
+        pcap_replay_path is configured. This is no longer a generator -
+        sniff() blocks indefinitely in live mode, so completed flows
+        must be pushed out via callback from a parallel timer thread
+        rather than yielded after sniff() returns, since sniff() with
+        no count/timeout never returns on its own.
         """
         if settings.pcap_replay_path and settings.pcap_replay_path.exists():
-            yield from self._run_replay()
+            self._run_replay(flow_callback)
         else:
-            yield from self._run_live()
+            self._run_live(flow_callback)
 
     # -------------------------------------------------------------------------
     # Live capture
     # -------------------------------------------------------------------------
 
-    def _run_live(self):
+    def _run_live(self, flow_callback) -> None:
         logger.info(
             "Starting live capture - interface=%s filter=%s",
             settings.capture_interface,
@@ -141,6 +147,13 @@ class PacketCapture:
         def handle_packet(pkt: Packet):
             self._process_packet(pkt)
 
+        expiry_thread = threading.Thread(
+            target=self._expiry_loop,
+            args=(flow_callback,),
+            daemon=True,
+        )
+        expiry_thread.start()
+
         sniff(
             iface  = settings.capture_interface,
             filter = settings.capture_filter or None,
@@ -148,14 +161,22 @@ class PacketCapture:
             store  = False,
         )
 
-        # sniff() blocks - flow expiry handled via separate background task
-        yield from self._drain_expired_flows()
+    def _expiry_loop(self, flow_callback) -> None:
+        """
+        Runs continuously on its own thread while sniff() blocks on the
+        main capture thread. Checks for expired flows every few seconds
+        and pushes each one out via flow_callback as it expires.
+        """
+        while True:
+            time.sleep(5)
+            for flow in self._drain_expired_flows():
+                flow_callback(flow)
 
     # -------------------------------------------------------------------------
     # Replay mode
     # -------------------------------------------------------------------------
 
-    def _run_replay(self):
+    def _run_replay(self, flow_callback) -> None:
         logger.info(
             "Starting PCAP replay - path=%s",
             settings.pcap_replay_path,
@@ -167,7 +188,7 @@ class PacketCapture:
 
         # Flush all flows at end of replay
         for flow in self.active_flows.values():
-            yield flow.to_dict()
+            flow_callback(flow.to_dict())
         self.active_flows.clear()
 
     # -------------------------------------------------------------------------
