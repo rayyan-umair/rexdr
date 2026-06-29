@@ -56,6 +56,11 @@ export const siem = {
   chain:  (chainId) => request(`/siem/chains/${chainId}`),
   rules:  () => request("/siem/rules"),
   stats:  () => request("/siem/stats"),
+  ask:    (context, question) =>
+    request("/siem/ai/ask", {
+      method: "POST",
+      body: JSON.stringify({ context, question }),
+    }),
 };
 
 // -- DNS Behavioral Intelligence -----------------------------------------------

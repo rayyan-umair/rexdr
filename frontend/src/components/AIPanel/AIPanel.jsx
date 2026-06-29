@@ -17,6 +17,7 @@
 import { useState } from "react";
 import { Sparkles, X, Send, AlertCircle } from "lucide-react";
 import { colors } from "../../design/tokens";
+import { siem } from "../../lib/api";
 
 export default function AIPanel({ open, onClose, context, aiConfigured = false }) {
   const [messages, setMessages] = useState([]);

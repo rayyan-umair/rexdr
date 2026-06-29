@@ -25,11 +25,12 @@ from pathlib import Path
 from typing import Any
 
 # -- Third Party -------------------------------------------------------------
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import APIRouter, FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # -- Internal ----------------------------------------------------------------
+from siem.ai_endpoint import router as ai_router
 from rexdr_core.identity import METADATA, VERSION, EngineID
 from siem.config import settings
 from siem.database import SiemDatabase
@@ -136,6 +137,8 @@ def create_app(
         allow_methods = ["*"],
         allow_headers = ["*"],
     )
+
+    app.include_router(ai_router)
 
     manager = ConnectionManager()
     app.state.ws_manager = manager
