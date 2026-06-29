@@ -18,6 +18,9 @@ GitHub  : github.com/rayyan-umair/rexdr
 
 # -- Standard Library --------------------------------------------------------
 import asyncio
+import subprocess
+import threading
+import os
 import json
 import logging
 from contextlib import asynccontextmanager
@@ -146,6 +149,48 @@ async def _broadcast_query(query_data: dict) -> None:
     except Exception as e:
         logger.debug("WebSocket broadcast error - error=%s", str(e))
 
+def sniffer_worker() -> None:
+    """
+    Launches the Go DNS sniffer as a subprocess and reads its stdout
+    line by line. Each line is a JSON-encoded raw DNS query. Runs on
+    a dedicated background thread since the read loop blocks.
+    """
+    logger.info("Starting DNS sniffer subprocess")
+
+    env = os.environ.copy()
+
+    process = subprocess.Popen(
+        ["/usr/local/bin/rexdr-dns-sniffer"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        env=env,
+    )
+
+    def read_stderr():
+        for line in process.stderr:
+            logger.info("[sniffer] %s", line.rstrip())
+
+    threading.Thread(target=read_stderr, daemon=True).start()
+
+    for line in process.stdout:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            query = json.loads(line)
+            db.insert_raw_query(query)
+        except json.JSONDecodeError:
+            logger.warning("Sniffer produced non-JSON line - line=%s", line[:200])
+        except Exception as e:
+            logger.error("Failed to insert sniffer query - error=%s", str(e))
+
+    process.wait()
+    logger.error(
+        "Sniffer subprocess exited - return_code=%d",
+        process.returncode,
+    )
 
 @asynccontextmanager
 async def lifespan(app):
@@ -157,6 +202,10 @@ async def lifespan(app):
     db.connect()
     entity_store.connect()
     await init_zmq()
+
+    sniffer_thread = threading.Thread(target=sniffer_worker, daemon=True)
+    sniffer_thread.start()
+    logger.info("Sniffer subprocess thread started")
 
     pipeline_task = asyncio.create_task(run_pipeline())
 

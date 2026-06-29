@@ -21,6 +21,9 @@ GitHub  : github.com/rayyan-umair/rexdr
 # -- Standard Library --------------------------------------------------------
 import asyncio
 import json
+import subprocess
+import threading
+import os
 import logging
 import yaml
 from contextlib import asynccontextmanager
@@ -242,6 +245,48 @@ async def _broadcast_detection(detection_data: dict) -> None:
     except Exception as e:
         logger.debug("WebSocket broadcast error - error=%s", str(e))
 
+def collector_worker() -> None:
+    """
+    Launches the Go AD collector as a subprocess and reads its stdout
+    line by line. Each line is a JSON-encoded raw AD security event.
+    Runs on a dedicated background thread since the read loop blocks.
+    """
+    logger.info("Starting AD collector subprocess")
+
+    env = os.environ.copy()
+
+    process = subprocess.Popen(
+        ["/usr/local/bin/rexdr-ad-collector"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        env=env,
+    )
+
+    def read_stderr():
+        for line in process.stderr:
+            logger.info("[collector] %s", line.rstrip())
+
+    threading.Thread(target=read_stderr, daemon=True).start()
+
+    for line in process.stdout:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+            db.insert_raw_event(event)
+        except json.JSONDecodeError:
+            logger.warning("Collector produced non-JSON line - line=%s", line[:200])
+        except Exception as e:
+            logger.error("Failed to insert collector event - error=%s", str(e))
+
+    process.wait()
+    logger.error(
+        "Collector subprocess exited - return_code=%d",
+        process.returncode,
+    )
 
 # ============================================================================
 # Lifespan
@@ -257,6 +302,10 @@ async def lifespan(app):
     db.connect()
     entity_store.connect()
     await init_zmq()
+
+    collector_thread = threading.Thread(target=collector_worker, daemon=True)
+    collector_thread.start()
+    logger.info("Collector subprocess thread started")
 
     event_task    = asyncio.create_task(run_event_pipeline())
     snapshot_task = asyncio.create_task(run_snapshot_loop())

@@ -21,7 +21,10 @@ GitHub  : github.com/rayyan-umair/rexdr
 
 # -- Standard Library --------------------------------------------------------
 import asyncio
+import os
 import json
+import subprocess
+import threading
 import logging
 import signal
 import sys
@@ -239,6 +242,49 @@ _app_instance = None
 def _get_app():
     return _app_instance
 
+def harvester_worker() -> None:
+    """
+    Launches the Go WinRM harvester as a subprocess and reads its
+    stdout line by line. Each line is a JSON-encoded raw event written
+    by the harvester binary. Runs on a dedicated background thread since
+    the subprocess read loop blocks.
+    """
+    logger.info("Starting WinRM harvester subprocess")
+
+    env = os.environ.copy()
+
+    process = subprocess.Popen(
+        ["/usr/local/bin/rexdr-harvester"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        env=env,
+    )
+
+    def read_stderr():
+        for line in process.stderr:
+            logger.info("[harvester] %s", line.rstrip())
+
+    threading.Thread(target=read_stderr, daemon=True).start()
+
+    for line in process.stdout:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+            db.insert_raw_event(event)
+        except json.JSONDecodeError:
+            logger.warning("Harvester produced non-JSON line - line=%s", line[:200])
+        except Exception as e:
+            logger.error("Failed to insert harvester event - error=%s", str(e))
+
+    process.wait()
+    logger.error(
+        "Harvester subprocess exited - return_code=%d",
+        process.returncode,
+    )
 
 # ============================================================================
 # Lifespan
@@ -261,6 +307,10 @@ async def lifespan(app):
 
     entity_store.connect()
     logger.info("Entity store connected")
+
+    harvester_thread = threading.Thread(target=harvester_worker, daemon=True)
+    harvester_thread.start()
+    logger.info("Harvester subprocess thread started")
 
     await init_zmq()
 
