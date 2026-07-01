@@ -36,21 +36,18 @@ export default function AIPanel({ open, onClose, context, aiConfigured = false }
     setInput("");
     setSending(true);
 
-    // The actual AI call is wired to the configured provider via the
-    // launcher-set credentials. This panel only renders the conversation -
-    // the request/response plumbing is intentionally engine-agnostic so
-    // any of the five supported providers can serve it.
     try {
-      // Placeholder for the real provider call - implemented once the
-      // launcher's AI configuration is wired through to the frontend env.
+      const res = await siem.ask(context, prompt);
+      setMessages((m) => [...m, { role: "assistant", text: res.answer }]);
+    } catch (err) {
       setMessages((m) => [
         ...m,
-        { role: "assistant", text: "AI provider call not yet wired in this build." },
+        { role: "assistant", text: `Error reaching AI provider: ${err.message}` },
       ]);
     } finally {
       setSending(false);
     }
-  }
+}
 
   return (
     <div
