@@ -48,6 +48,24 @@ class AskRequest(BaseModel):
     context: dict
     question: str | None = None
 
+@router.get("/ai/status")
+async def ai_status() -> dict:
+    """
+    Reports whether an AI provider is currently configured, without
+    exposing the API key itself. The frontend uses this instead of a
+    build-time flag, so AI availability always reflects the real
+    backend configuration.
+    """
+    client = AIClient(
+        provider = settings.ai_provider,
+        api_key  = settings.ai_api_key,
+        model    = settings.ai_model,
+        base_url = settings.ai_base_url,
+    )
+    return {
+        "configured": client.is_configured(),
+        "provider": settings.ai_provider or None,
+    }
 
 @router.post("/ai/ask")
 async def ask_ai(req: AskRequest) -> dict:

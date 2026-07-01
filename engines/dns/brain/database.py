@@ -209,7 +209,7 @@ class DnsDatabase(BaseDatabase):
             payload.event_type,
             payload.event_code,
             payload.description,
-            json.dumps(payload.raw_data),
+            json.dumps(payload.raw_data, default=str),
             payload.zone_source,
             payload.zone_destination,
             payload.is_cross_zone,
@@ -244,7 +244,7 @@ class DnsDatabase(BaseDatabase):
             detection.entity_type.value,
             json.dumps([
                 e.model_dump(mode="json") for e in detection.evidence
-            ]),
+            ], default=str),
             detection.mitre_tactic,
             detection.mitre_technique,
             detection.status.value,

@@ -61,6 +61,7 @@ export const siem = {
       method: "POST",
       body: JSON.stringify({ context, question }),
     }),
+  aiStatus: () => request("/siem/ai/status"),
 };
 
 // -- DNS Behavioral Intelligence -----------------------------------------------

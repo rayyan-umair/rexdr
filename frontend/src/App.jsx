@@ -12,10 +12,11 @@
  * --- Part of the REXDR platform. ---
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import { colors } from "./design/tokens";
 import { useEngineHealth } from "./hooks/useEngineHealth";
+import { siem } from "./lib/api";
 import Sidebar from "./components/Sidebar/Sidebar";
 import TopBar from "./components/TopBar/TopBar";
 import CommandPalette from "./components/CommandPalette/CommandPalette";
@@ -29,8 +30,13 @@ export default function App() {
   const { health } = useEngineHealth();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiConfigured, setAiConfigured] = useState(false);
 
-  const aiConfigured = Boolean(import.meta.env.VITE_AI_CONFIGURED === "true");
+  useEffect(() => {
+    siem.aiStatus()
+      .then((res) => setAiConfigured(res.configured))
+      .catch(() => setAiConfigured(false));
+  }, []);
 
   return (
     <div style={{ display: "flex", height: "100vh", background: colors.background }}>
