@@ -188,7 +188,7 @@ class EntityStore:
             json.dumps(entity.known_ips),
             json.dumps(entity.active_chain_ids),
             json.dumps({
-                k: v.model_dump() if hasattr(v, "model_dump") else v
+                k: v.model_dump(mode="json") if hasattr(v, "model_dump") else v
                 for k, v in entity.engine_observations.items()
             }),
             json.dumps(entity.tags),
