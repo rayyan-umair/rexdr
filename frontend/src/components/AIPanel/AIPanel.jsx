@@ -37,7 +37,7 @@ export default function AIPanel({ open, onClose, context, aiConfigured = false }
     setSending(true);
 
     try {
-      const res = await siem.ask(context, prompt);
+      const res = await siem.ask(context || {}, prompt);
       setMessages((m) => [...m, { role: "assistant", text: res.answer }]);
     } catch (err) {
       setMessages((m) => [
