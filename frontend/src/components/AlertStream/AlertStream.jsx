@@ -4,6 +4,13 @@
  *
  * Author  : Rayyan Umair
  * Date    : 2026-06-20
+ * Updated : 2026-07-02 - Seeds the feed with existing open detections
+ *           via REST on mount (fetchAllDetections), then appends new
+ *           events from the live WebSocket stream on top. Previously
+ *           this component was WebSocket-only and showed "No live
+ *           activity yet" even when the platform had a large backlog
+ *           of real open detections, since it never asked what
+ *           already existed - only what arrived after the page loaded.
  * Purpose : Virtualised-feeling live stream of detections and attack
  *           chains across all eight engines, merged into a single
  *           chronological feed. This is the primary "what is happening
@@ -13,18 +20,63 @@
  * --- Part of the REXDR platform. ---
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, GitMerge } from "lucide-react";
 import { colors } from "../../design/tokens";
 import { useAllEnginesStream } from "../../hooks/useLiveStream";
+import { fetchAllDetections } from "../../lib/api";
 import SeverityBadge from "../Shared/SeverityBadge";
 import EngineBadge from "../Shared/EngineBadge";
 import EmptyState from "../Shared/EmptyState";
 import { formatDistanceToNow } from "date-fns";
 
 export default function AlertStream({ onSelect }) {
-  const messages = useAllEnginesStream(300);
+  const liveMessages = useAllEnginesStream(300);
+  const [seeded, setSeeded] = useState([]);
+  const [loadingSeed, setLoadingSeed] = useState(true);
   const [filter, setFilter] = useState("all");
+
+  // Seed with existing open detections on mount, once. The live
+  // WebSocket stream (liveMessages) handles everything that arrives
+  // after this initial load.
+  useEffect(() => {
+    let cancelled = false;
+    fetchAllDetections(50)
+      .then((detections) => {
+        if (cancelled) return;
+        const asMessages = detections.map((d) => ({
+          type: "detection",
+          data: d,
+          sourceEngine: d.engine_id,
+          timestamp: d.timestamp,
+        }));
+        setSeeded(asMessages);
+      })
+      .catch(() => {
+        if (!cancelled) setSeeded([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSeed(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Merge seeded (historical) + live messages, de-duplicated by a
+  // stable key, most recent first.
+  const messages = useMemo(() => {
+    const combined = [...liveMessages, ...seeded];
+    const seen = new Set();
+    const deduped = [];
+    for (const m of combined) {
+      const key = m.data?.detection_id || m.data?.chain_id || `${m.timestamp}-${m.sourceEngine}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(m);
+    }
+    return deduped.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  }, [liveMessages, seeded]);
 
   const filtered = useMemo(() => {
     const relevant = messages.filter((m) =>
@@ -73,7 +125,9 @@ export default function AlertStream({ onSelect }) {
       </div>
 
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {filtered.length === 0 ? (
+        {loadingSeed ? (
+          <EmptyState icon={AlertTriangle} title="Loading recent activity..." />
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={AlertTriangle}
             title="No live activity yet"
@@ -81,7 +135,7 @@ export default function AlertStream({ onSelect }) {
           />
         ) : (
           filtered.map((msg, i) => (
-            <AlertRow key={`${msg.timestamp}-${i}`} message={msg} onSelect={onSelect} />
+            <AlertRow key={`${msg.data?.detection_id || msg.timestamp}-${i}`} message={msg} onSelect={onSelect} />
           ))
         )}
       </div>
