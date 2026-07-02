@@ -4,6 +4,10 @@
  *
  * Author  : Rayyan Umair
  * Date    : 2026-06-20
+ * Updated : 2026-07-02 - Wired to real /siem/ai/ask backend call.
+ *           Added lightweight markdown-style rendering for AI responses
+ *           (bold headers, numbered/bulleted lists, paragraphs) instead
+ *           of dumping the raw response as one dense block of text.
  * Purpose : Slide-in panel that sends the currently selected detection
  *           or attack chain to the configured AI provider for plain
  *           language explanation. Grounded entirely in real selected
@@ -18,6 +22,74 @@ import { useState } from "react";
 import { Sparkles, X, Send, AlertCircle } from "lucide-react";
 import { colors } from "../../design/tokens";
 import { siem } from "../../lib/api";
+
+// -- Lightweight AI response formatter ---------------------------------------
+// No markdown library dependency. Handles the patterns the AI system prompt
+// naturally produces: **bold** headers/phrases, numbered lists ("1. ..."),
+// bullet lists ("- ..." or "* ..."), and paragraph breaks (blank lines).
+
+function renderInlineBold(text, keyPrefix) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={`${keyPrefix}-b-${i}`} style={{ color: colors.textPrimary, fontWeight: 700 }}>
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <span key={`${keyPrefix}-t-${i}`}>{part}</span>;
+  });
+}
+
+function formatAIText(text) {
+  if (!text) return null;
+
+  const blocks = text.trim().split(/\n\s*\n/);
+
+  return blocks.map((block, blockIdx) => {
+    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+
+    const isNumberedList = lines.length > 0 && lines.every((l) => /^\d+\.\s/.test(l));
+    const isBulletList = lines.length > 0 && lines.every((l) => /^[-*]\s/.test(l));
+
+    if (isNumberedList) {
+      return (
+        <ol
+          key={blockIdx}
+          style={{ margin: "0 0 12px", paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "6px" }}
+        >
+          {lines.map((line, i) => (
+            <li key={i} style={{ fontSize: "13px", color: colors.textSecondary, lineHeight: 1.55 }}>
+              {renderInlineBold(line.replace(/^\d+\.\s/, ""), `${blockIdx}-${i}`)}
+            </li>
+          ))}
+        </ol>
+      );
+    }
+
+    if (isBulletList) {
+      return (
+        <ul
+          key={blockIdx}
+          style={{ margin: "0 0 12px", paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "6px" }}
+        >
+          {lines.map((line, i) => (
+            <li key={i} style={{ fontSize: "13px", color: colors.textSecondary, lineHeight: 1.55 }}>
+              {renderInlineBold(line.replace(/^[-*]\s/, ""), `${blockIdx}-${i}`)}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    return (
+      <p key={blockIdx} style={{ margin: "0 0 12px", fontSize: "13px", color: colors.textSecondary, lineHeight: 1.55 }}>
+        {renderInlineBold(block, `${blockIdx}`)}
+      </p>
+    );
+  });
+}
 
 export default function AIPanel({ open, onClose, context, aiConfigured = false }) {
   const [messages, setMessages] = useState([]);
@@ -47,7 +119,7 @@ export default function AIPanel({ open, onClose, context, aiConfigured = false }
     } finally {
       setSending(false);
     }
-}
+  }
 
   return (
     <div
@@ -147,16 +219,16 @@ export default function AIPanel({ open, onClose, context, aiConfigured = false }
                 <div
                   key={i}
                   style={{
-                    marginBottom: "12px",
+                    marginBottom: "16px",
                     fontSize: "13px",
                     color: m.role === "user" ? colors.textPrimary : colors.textSecondary,
                     lineHeight: 1.5,
                   }}
                 >
-                  <div style={{ fontSize: "10px", fontWeight: 700, color: colors.textTertiary, marginBottom: "3px" }}>
+                  <div style={{ fontSize: "10px", fontWeight: 700, color: colors.textTertiary, marginBottom: "5px" }}>
                     {m.role === "user" ? "YOU" : "REXDR AI"}
                   </div>
-                  {m.text}
+                  {m.role === "assistant" ? formatAIText(m.text) : m.text}
                 </div>
               ))
             )}
