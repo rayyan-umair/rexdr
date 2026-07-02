@@ -21,7 +21,7 @@ import AlertStream from "../components/AlertStream/AlertStream";
 import EntityRiskBoard from "../components/EntityRiskBoard/EntityRiskBoard";
 import InvestigationBlade from "../components/InvestigationBlade/InvestigationBlade";
 
-export default function Overview() {
+export default function Overview({ onAskAI }) {
   const { health } = useEngineHealth();
   const [selected, setSelected] = useState(null);
   const [activeTab, setActiveTab] = useState("alerts");
@@ -112,7 +112,7 @@ export default function Overview() {
         <InvestigationBlade
           item={selected}
           onClose={() => setSelected(null)}
-          onAskAI={() => {}}
+          onAskAI={onAskAI}
         />
       )}
     </div>

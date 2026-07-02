@@ -3,7 +3,7 @@
  * App.jsx - Root application shell
  *
  * Author  : Rayyan Umair
- * Date    : 2026-06-20
+ * Date    : 2026-07-02
  * Purpose : Composes the persistent layout - Sidebar, TopBar, routed
  *           page content, Command Palette, and AI Panel - around the
  *           React Router outlet. This is the one place that assembles
@@ -30,6 +30,7 @@ export default function App() {
   const { health } = useEngineHealth();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiContext, setAiContext] = useState(null);
   const [aiConfigured, setAiConfigured] = useState(false);
 
   useEffect(() => {
@@ -37,6 +38,11 @@ export default function App() {
       .then((res) => setAiConfigured(res.configured))
       .catch(() => setAiConfigured(false));
   }, []);
+
+  function handleAskAI(item) {
+    setAiContext(item);
+    setAiOpen(true);
+  }
 
   return (
     <div style={{ display: "flex", height: "100vh", background: colors.background }}>
@@ -54,8 +60,8 @@ export default function App() {
 
         <div style={{ flex: 1, overflow: "hidden" }}>
           <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/engine/:engineId" element={<EngineView />} />
+            <Route path="/" element={<Overview onAskAI={handleAskAI} />} />
+            <Route path="/engine/:engineId" element={<EngineView onAskAI={handleAskAI} />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
@@ -63,7 +69,12 @@ export default function App() {
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
-      <AIPanel open={aiOpen} onClose={() => setAiOpen(false)} aiConfigured={aiConfigured} />
+      <AIPanel
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        context={aiContext}
+        aiConfigured={aiConfigured}
+      />
     </div>
   );
 }

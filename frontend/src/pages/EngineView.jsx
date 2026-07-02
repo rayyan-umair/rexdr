@@ -27,7 +27,7 @@ import EmptyState from "../components/Shared/EmptyState";
 import InvestigationBlade from "../components/InvestigationBlade/InvestigationBlade";
 import { formatDistanceToNow } from "date-fns";
 
-export default function EngineView() {
+export default function EngineView({ onAskAI }) {
   const { engineId } = useParams();
   const engine = ENGINES[engineId];
   const client = ENGINE_CLIENTS[engineId];
@@ -156,7 +156,7 @@ export default function EngineView() {
         <InvestigationBlade
           item={selected}
           onClose={() => setSelected(null)}
-          onAskAI={() => {}}
+          onAskAI={onAskAI}
         />
       )}
     </div>
