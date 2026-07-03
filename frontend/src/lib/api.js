@@ -4,6 +4,12 @@
  *
  * Author  : Rayyan Umair
  * Date    : 2026-06-20
+ * Updated : 2026-07-03 - fetchAllDetections now excludes both `response`
+ *           (no /detections endpoint) and `siem` (exposes chains/sigma
+ *           matches instead of /detections). Previously only `response`
+ *           was excluded, so the aggregate call threw a TypeError on
+ *           siem.detections() and silently returned nothing for every
+ *           engine after it in iteration order.
  * Purpose : Single client for talking to every REXDR engine API. Routes
  *           through the Nginx gateway in production so the browser only
  *           ever talks to one origin. In local dev, Vite's proxy or
@@ -123,9 +129,10 @@ export const ENGINE_CLIENTS = {
   vulnerability:    vulnerability,
 };
 
-export async function fetchAllDetections(limit = 30) {
-  const entries = Object.entries(ENGINE_CLIENTS).filter(
-    ([id]) => !["response", "siem"].includes(id) // neither has a /detections endpoint - siem exposes chains/sigma matches instead
+export async function fetchAllEngineHealth() {
+  const entries = Object.entries(ENGINE_CLIENTS);
+  const results = await Promise.allSettled(
+    entries.map(([, client]) => client.health())
   );
 
   return entries.reduce((acc, [engineId], i) => {
@@ -139,7 +146,7 @@ export async function fetchAllDetections(limit = 30) {
 
 export async function fetchAllDetections(limit = 30) {
   const entries = Object.entries(ENGINE_CLIENTS).filter(
-    ([id]) => id !== "response" // response has no /detections endpoint
+    ([id]) => !["response", "siem"].includes(id) // neither has a /detections endpoint - siem exposes chains/sigma matches instead
   );
 
   const results = await Promise.allSettled(
