@@ -4,6 +4,12 @@
  *
  * Author  : Rayyan Umair
  * Date    : 2026-06-20
+ * Updated : 2026-07-03 - Seeds the entity map with existing open
+ *           detections via REST (fetchAllDetections) on mount, then
+ *           merges live WebSocket messages on top. Previously this
+ *           component was WebSocket-only and showed "No tracked
+ *           entities yet" even when the platform had a large backlog
+ *           of real detections tied to real entities.
  * Purpose : Shows every tracked entity sorted by composite risk score
  *           descending. This is the view that makes REXDR's unified
  *           entity model tangible - one IP or username with a single
@@ -17,10 +23,11 @@
  * --- Part of the REXDR platform. ---
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Users } from "lucide-react";
 import { colors } from "../../design/tokens";
 import { useAllEnginesStream } from "../../hooks/useLiveStream";
+import { fetchAllDetections } from "../../lib/api";
 import EmptyState from "../Shared/EmptyState";
 import Card from "../Shared/Card";
 
@@ -32,7 +39,35 @@ function riskColor(score) {
 }
 
 export default function EntityRiskBoard({ onSelectEntity }) {
-  const messages = useAllEnginesStream(500);
+  const liveMessages = useAllEnginesStream(500);
+  const [seeded, setSeeded] = useState([]);
+  const [loadingSeed, setLoadingSeed] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAllDetections(200)
+      .then((detections) => {
+        if (cancelled) return;
+        const asMessages = detections.map((d) => ({
+          type: "detection",
+          data: d,
+          sourceEngine: d.engine_id,
+          timestamp: d.timestamp,
+        }));
+        setSeeded(asMessages);
+      })
+      .catch(() => {
+        if (!cancelled) setSeeded([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSeed(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const messages = useMemo(() => [...liveMessages, ...seeded], [liveMessages, seeded]);
 
   const entities = useMemo(() => {
     const map = new Map();
@@ -77,6 +112,15 @@ export default function EntityRiskBoard({ onSelectEntity }) {
       }))
       .sort((a, b) => b.riskScore - a.riskScore);
   }, [messages]);
+
+  if (loadingSeed) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="Loading tracked entities..."
+      />
+    );
+  }
 
   if (entities.length === 0) {
     return (
