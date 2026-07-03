@@ -123,10 +123,9 @@ export const ENGINE_CLIENTS = {
   vulnerability:    vulnerability,
 };
 
-export async function fetchAllEngineHealth() {
-  const entries = Object.entries(ENGINE_CLIENTS);
-  const results = await Promise.allSettled(
-    entries.map(([, client]) => client.health())
+export async function fetchAllDetections(limit = 30) {
+  const entries = Object.entries(ENGINE_CLIENTS).filter(
+    ([id]) => !["response", "siem"].includes(id) // neither has a /detections endpoint - siem exposes chains/sigma matches instead
   );
 
   return entries.reduce((acc, [engineId], i) => {
