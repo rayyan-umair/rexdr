@@ -4,6 +4,10 @@ database.py - DuckDB database layer for the Network Flow engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-17
+Updated : 2026-07-03 - Fixed DuckDB parameter binding inside INTERVAL
+          literals (INTERVAL ? SECONDS is invalid syntax; DuckDB
+          requires INTERVAL '1 second' * ? instead). Added
+          critical_detections count to get_stats().
 Purpose : Extends BaseDatabase with the Network Flow engine schema.
           Owns the network_flow.duckdb file. Defines all tables for
           raw packets, flow records, detections, and entity observations.
@@ -391,7 +395,7 @@ class NetworkFlowDatabase(BaseDatabase):
         result = self.conn.execute("""
             SELECT COUNT(DISTINCT dst_port) FROM flow_records
             WHERE src_ip = ?
-            AND start_time >= NOW() - INTERVAL ? SECONDS
+            AND start_time >= NOW() - INTERVAL '1 second' * ?
         """, [src_ip, window_seconds]).fetchone()
         return result[0] if result else 0
 
@@ -405,7 +409,7 @@ class NetworkFlowDatabase(BaseDatabase):
             SELECT COALESCE(SUM(bytes_sent), 0) FROM flow_records
             WHERE src_ip = ?
             AND is_external = TRUE
-            AND start_time >= NOW() - INTERVAL ? SECONDS
+            AND start_time >= NOW() - INTERVAL '1 second' * ?
         """, [src_ip, window_seconds]).fetchone()
         return result[0] if result else 0
 
@@ -419,7 +423,7 @@ class NetworkFlowDatabase(BaseDatabase):
             SELECT DISTINCT dst_ip FROM flow_records
             WHERE src_ip = ?
             AND is_external = FALSE
-            AND start_time >= NOW() - INTERVAL ? SECONDS
+            AND start_time >= NOW() - INTERVAL '1 second' * ?
         """, [src_ip, window_seconds]).fetchall()
         return [row[0] for row in rows]
 
@@ -497,9 +501,11 @@ class NetworkFlowDatabase(BaseDatabase):
         open_detections = self.conn.execute(
             "SELECT COUNT(*) FROM detections WHERE status = 'open'"
         ).fetchone()[0]
+
         critical_detections = self.conn.execute(
             "SELECT COUNT(*) FROM detections WHERE severity = 'critical' AND status = 'open'"
         ).fetchone()[0]
+
         return {
             "total_flows":          total_flows,
             "external_flows":       external_flows,
