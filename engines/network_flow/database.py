@@ -497,11 +497,14 @@ class NetworkFlowDatabase(BaseDatabase):
         open_detections = self.conn.execute(
             "SELECT COUNT(*) FROM detections WHERE status = 'open'"
         ).fetchone()[0]
-
+        critical_detections = self.conn.execute(
+            "SELECT COUNT(*) FROM detections WHERE severity = 'critical' AND status = 'open'"
+        ).fetchone()[0]
         return {
-            "total_flows":       total_flows,
-            "external_flows":    external_flows,
-            "threat_matches":    threat_matches,
-            "total_detections":  total_detections,
-            "open_detections":   open_detections,
+            "total_flows":          total_flows,
+            "external_flows":       external_flows,
+            "threat_matches":       threat_matches,
+            "total_detections":     total_detections,
+            "open_detections":      open_detections,
+            "critical_detections":  critical_detections,
         }
