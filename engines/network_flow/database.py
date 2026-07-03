@@ -479,6 +479,28 @@ class NetworkFlowDatabase(BaseDatabase):
             "risk_contribution", "created_at"
         ]
         return [dict(zip(columns, row)) for row in rows]
+    
+    def has_recent_beacon_detection(
+    self,
+    src_ip: str,
+    dst_ip: str,
+    window_minutes: int,
+    ) -> bool:
+        """
+        Check whether an open STRIKE-002 detection already exists for this
+        exact src_ip -> dst_ip pair within the cooldown window, so ongoing
+        beaconing behavior produces one persistent alert instead of a new
+        detection on every qualifying flow.
+        """
+        result = self.conn.execute("""
+            SELECT COUNT(*) FROM detections
+            WHERE entity_id = ?
+            AND detection_code = 'STRIKE-002'
+            AND status = 'open'
+            AND description LIKE '%to ' || ? || ' %'
+            AND timestamp >= NOW() - INTERVAL '1 minute' * ?
+        """, [src_ip, dst_ip, window_minutes]).fetchone()[0]
+        return result > 0
 
     def get_stats(self) -> dict:
         """Return engine statistics."""

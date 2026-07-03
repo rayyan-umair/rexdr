@@ -4,6 +4,12 @@ detections.py - Detection logic for the Network Flow engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-17
+Updated : 2026-07-03 - STRIKE-002 (Beaconing) now checks for an existing
+          open detection on the same src_ip -> dst_ip pair within a
+          cooldown window before creating a new one. Previously this
+          detector fired on every qualifying flow, producing dozens of
+          duplicate detections for the same ongoing beaconing behavior
+          instead of one persistent alert.
 Purpose : Implements all five detection algorithms for the Network Flow
           Intelligence engine. Each detection is a self-contained method
           that receives an enriched flow, queries the database for
@@ -132,6 +138,10 @@ class NetworkFlowDetections:
         Fires when connections from src_ip to dst_ip occur at regular,
         timed intervals consistent with C2 heartbeat behavior.
         Uses coefficient of variation to detect timing regularity.
+        Suppressed if an open detection already exists for this exact
+        src_ip -> dst_ip pair within the cooldown window, so ongoing
+        beaconing behavior produces one persistent alert rather than a
+        new detection on every qualifying flow.
 
         MITRE: T1071 - Application Layer Protocol (C2)
         """
@@ -164,6 +174,11 @@ class NetworkFlowDetections:
 
         # CV below 0.3 indicates suspiciously regular timing - C2 heartbeat pattern
         if coefficient_of_variation >= 0.3:
+            return None
+
+        if self.db.has_recent_beacon_detection(
+            src_ip, dst_ip, window_minutes=settings.beacon_dedup_window_minutes
+        ):
             return None
 
         severity = (

@@ -116,6 +116,11 @@ class NetworkFlowSettings(BaseEngineSettings):
         description="Minimum number of timed connections to trigger STRIKE-002.",
     )
 
+    beacon_dedup_window_minutes: int = Field(
+    default=60,
+    description="Minutes to suppress duplicate beaconing detections for the same src/dst pair.",
+    )
+
     high_transfer_threshold_mb: float = Field(
         default=100.0,
         description="Outbound transfer threshold in MB to trigger STRIKE-003.",
