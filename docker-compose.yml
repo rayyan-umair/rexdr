@@ -113,7 +113,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-
+      interval: 30s
+      timeout: 25s
+      retries: 3
+      start_period: 30s
 # ---------------------------------------------------------------------------
   # Entity Store Service
   # Owns the single writable DuckDB connection to entity_store.duckdb.
@@ -185,7 +188,7 @@ services:
         condition: service_healthy
     healthcheck:
       interval: 30s
-      timeout: 10s
+      timeout: 25s
       retries: 3
       start_period: 20s
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
@@ -282,7 +285,7 @@ services:
         condition: service_healthy
     healthcheck:
       interval: 30s
-      timeout: 10s
+      timeout: 25s
       retries: 3
       start_period: 20s
       test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
