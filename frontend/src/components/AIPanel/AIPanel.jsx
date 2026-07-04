@@ -42,53 +42,85 @@ function renderInlineBold(text, keyPrefix) {
   });
 }
 
+const HEADING_PREFIX = /^\*\*([^*]+?)\*\*:?\s*/;
+
 function formatAIText(text) {
   if (!text) return null;
 
   const blocks = text.trim().split(/\n\s*\n/);
+  const elements = [];
 
-  return blocks.map((block, blockIdx) => {
-    const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
+  blocks.forEach((block, blockIdx) => {
+    let remaining = block.trim();
 
+    const headingMatch = remaining.match(HEADING_PREFIX);
+    if (headingMatch) {
+      elements.push(
+        <div
+          key={`${blockIdx}-heading`}
+          style={{
+            fontSize: "12px",
+            fontWeight: 700,
+            color: colors.textPrimary,
+            marginTop: elements.length === 0 ? 0 : "18px",
+            marginBottom: "6px",
+            letterSpacing: "0.02em",
+          }}
+        >
+          {headingMatch[1].replace(/:$/, "")}
+        </div>
+      );
+      remaining = remaining.slice(headingMatch[0].length).trim();
+      if (!remaining) return;
+    }
+
+    const lines = remaining.split("\n").map((l) => l.trim()).filter(Boolean);
     const isNumberedList = lines.length > 0 && lines.every((l) => /^\d+\.\s/.test(l));
     const isBulletList = lines.length > 0 && lines.every((l) => /^[-*]\s/.test(l));
 
     if (isNumberedList) {
-      return (
+      elements.push(
         <ol
-          key={blockIdx}
-          style={{ margin: "0 0 12px", paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "6px" }}
+          key={`${blockIdx}-ol`}
+          style={{ margin: "0 0 14px", paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "8px" }}
         >
           {lines.map((line, i) => (
-            <li key={i} style={{ fontSize: "13px", color: colors.textSecondary, lineHeight: 1.55 }}>
+            <li key={i} style={{ fontSize: "13px", color: colors.textSecondary, lineHeight: 1.6 }}>
               {renderInlineBold(line.replace(/^\d+\.\s/, ""), `${blockIdx}-${i}`)}
             </li>
           ))}
         </ol>
       );
+      return;
     }
 
     if (isBulletList) {
-      return (
+      elements.push(
         <ul
-          key={blockIdx}
-          style={{ margin: "0 0 12px", paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "6px" }}
+          key={`${blockIdx}-ul`}
+          style={{ margin: "0 0 14px", paddingLeft: "20px", display: "flex", flexDirection: "column", gap: "8px" }}
         >
           {lines.map((line, i) => (
-            <li key={i} style={{ fontSize: "13px", color: colors.textSecondary, lineHeight: 1.55 }}>
+            <li key={i} style={{ fontSize: "13px", color: colors.textSecondary, lineHeight: 1.6 }}>
               {renderInlineBold(line.replace(/^[-*]\s/, ""), `${blockIdx}-${i}`)}
             </li>
           ))}
         </ul>
       );
+      return;
     }
 
-    return (
-      <p key={blockIdx} style={{ margin: "0 0 12px", fontSize: "13px", color: colors.textSecondary, lineHeight: 1.55 }}>
-        {renderInlineBold(block, `${blockIdx}`)}
+    elements.push(
+      <p
+        key={`${blockIdx}-p`}
+        style={{ margin: "0 0 14px", fontSize: "13px", color: colors.textSecondary, lineHeight: 1.6 }}
+      >
+        {renderInlineBold(remaining, `${blockIdx}`)}
       </p>
     );
   });
+
+  return elements;
 }
 
 export default function AIPanel({ open, onClose, context, aiConfigured = false }) {

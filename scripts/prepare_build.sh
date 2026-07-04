@@ -32,6 +32,7 @@ ENGINES=(
     "engines/response"
     "engines/asset_discovery"
     "engines/vulnerability"
+    "engines/entity_store"
 )
 
 echo -e "\033[36mCopying rexdr_core wheel to all engine build contexts...\033[0m"

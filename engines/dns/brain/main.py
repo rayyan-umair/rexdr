@@ -46,7 +46,7 @@ logging.basicConfig(level=settings.log_level, format=settings.log_format)
 logger = logging.getLogger(__name__)
 
 db           = DnsDatabase(data_dir=settings.data_dir)
-entity_store  = EntityStoreClient(base_url="http://entity-store:8008")
+entity_store  = EntityStoreClient(base_url="http://localhost:8008")
 inspector    = DnsInspector()
 detector     = DnsDetections(db=db)
 entity_mgr   = DnsEntityManager(db=db, entity_store=entity_store)

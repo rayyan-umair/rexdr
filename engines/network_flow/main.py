@@ -42,6 +42,8 @@ from network_flow.entity import NetworkFlowEntityManager
 from network_flow.inspector import FlowInspector
 
 # ============================================================================
+# Logging setup
+# ============================================================================
 
 logging.basicConfig(
     level  = settings.log_level,
@@ -54,7 +56,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 db            = NetworkFlowDatabase(data_dir=settings.data_dir)
-entity_store  = EntityStoreClient(base_url="http://entity-store:8008")
+entity_store  = EntityStoreClient(base_url="http://localhost:8008")
 inspector     = FlowInspector()
 detector      = NetworkFlowDetections(db=db)
 entity_mgr    = NetworkFlowEntityManager(db=db, entity_store=entity_store)

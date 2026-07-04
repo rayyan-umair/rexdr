@@ -142,10 +142,12 @@ services:
       LOG_LEVEL: "INFO"
     expose:
       - "8008"
+    ports:
+      - "8008:8008"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8008/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 25s
       retries: 3
       start_period: 20s
 
@@ -202,6 +204,8 @@ services:
     build:
       context: ./engines/siem
       dockerfile: Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - rexdr_internal
     environment:
@@ -238,7 +242,7 @@ services:
         condition: service_healthy
     healthcheck:
       interval: 30s
-      timeout: 10s
+      timeout: 25s
       retries: 3
       start_period: 20s
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
@@ -365,9 +369,9 @@ services:
         condition: service_healthy
     healthcheck:
       interval: 30s
-      timeout: 10s
+      timeout: 25s
       retries: 3
-      start_period: 20s
+      start_period: 30s
       test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
 
   # ---------------------------------------------------------------------------
@@ -410,9 +414,9 @@ services:
         condition: service_healthy
     healthcheck:
       interval: 30s
-      timeout: 10s
+      timeout: 25s
       retries: 3
-      start_period: 20s
+      start_period: 30s
       test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
 
   # ---------------------------------------------------------------------------
@@ -475,7 +479,7 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
-      timeout: 10s
+      timeout: 25s
       retries: 3
       start_period: 30s
 

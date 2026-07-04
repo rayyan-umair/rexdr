@@ -42,7 +42,7 @@ logging.basicConfig(level=settings.log_level, format=settings.log_format)
 logger = logging.getLogger(__name__)
 
 db           = AssetDiscoveryDatabase(data_dir=settings.data_dir)
-entity_store  = EntityStoreClient(base_url="http://entity-store:8008")
+entity_store  = EntityStoreClient(base_url="http://localhost:8008")
 scanner      = NetworkScanner()
 detector     = AssetDiscoveryDetections()
 entity_mgr   = AssetDiscoveryEntityManager(db=db, entity_store=entity_store)

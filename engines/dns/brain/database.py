@@ -346,7 +346,7 @@ class DnsDatabase(BaseDatabase):
             SELECT COUNT(*) FROM dns_queries
             WHERE source_ip = ?
             AND response_code = 'NXDOMAIN'
-            AND timestamp >= NOW() - INTERVAL ? SECONDS
+            AND timestamp >= NOW() - INTERVAL '1 second' * ?
         """, [source_ip, window_seconds]).fetchone()
         return result[0] if result else 0
 
@@ -361,7 +361,7 @@ class DnsDatabase(BaseDatabase):
             SELECT COUNT(*) FROM dns_queries
             WHERE source_ip = ?
             AND query_type = ?
-            AND timestamp >= NOW() - INTERVAL ? SECONDS
+            AND timestamp >= NOW() - INTERVAL '1 second' * ?
         """, [source_ip, record_type, window_seconds]).fetchone()
         return result[0] if result else 0
 

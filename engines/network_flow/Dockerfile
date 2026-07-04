@@ -28,6 +28,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . ./network_flow
+COPY intel/known_bad.txt /app/intel/known_bad.txt
 
 RUN mkdir -p /data /data/archive /config /app/intel
 
