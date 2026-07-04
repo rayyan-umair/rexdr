@@ -15,7 +15,10 @@ FROM golang:1.21-alpine AS sniffer-builder
 # by the other Go binaries in this platform that don't touch pcap)
 # would leave gopacket's cgo-defined symbols unresolved - this is the
 # one Go build in REXDR that must run with cgo enabled.
-RUN apt-get update && apt-get install -y --no-install-recommends gcc libpcap-dev && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    libpcap-dev -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 COPY sniffer/go.mod sniffer/go.sum ./
