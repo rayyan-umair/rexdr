@@ -496,7 +496,7 @@ services:
       - rexdr_internal
       - rexdr_external
     ports:
-      - "8888:80"
+      - "80:80"
       #- "8443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
