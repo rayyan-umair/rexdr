@@ -33,7 +33,7 @@ from rexdr_core.schemas import (
 from rexdr_core.database import BaseDatabase
 from rexdr_core.settings import BaseEngineSettings
 from rexdr_core.formula import calculate_entity_risk_score
-from rexdr_core.entity_store import EntityStoreClient
+from rexdr_core.entity_store_client import EntityStoreClient
 from rexdr_core.ai_client import AIClient
 
 
