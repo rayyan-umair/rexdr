@@ -395,7 +395,7 @@ class IdentityDatabase(BaseDatabase):
             SELECT COUNT(*) FROM raw_events
             WHERE username = ?
             AND event_id = 4769
-            AND time_created >= NOW() - INTERVAL ? MINUTES
+            AND time_created >= NOW() - INTERVAL '1 minute' * ?
         """, [username, window_minutes]).fetchone()
         return result[0] if result else 0
 

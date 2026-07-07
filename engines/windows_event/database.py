@@ -207,7 +207,7 @@ class WindowsEventDatabase(BaseDatabase):
             payload.event_type,
             payload.event_code,
             payload.description,
-            json.dumps(payload.raw_data),
+            json.dumps(payload.raw_data, default=str),
             payload.zone_source,
             payload.zone_destination,
             payload.is_cross_zone,
