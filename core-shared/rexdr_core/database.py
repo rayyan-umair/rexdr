@@ -133,23 +133,33 @@ class BaseDatabase(ABC):
     # Thread-safe query execution
     # -------------------------------------------------------------------------
 
-    def execute(self, query: str, params: list | None = None):
-        """
-        Thread-safe wrapper around self.conn.execute(). DuckDB's Python
-        connection object is not safe for concurrent use across threads -
-        engines that run a background harvester/sniffer thread alongside
-        the async pipeline (both sharing self.conn) can otherwise get
-        corrupted or truncated query results under real concurrent load,
-        even though the underlying data on disk is completely correct.
-        All engine database classes should call self.execute(...) instead
-        of self.conn.execute(...) directly.
-        """
+    def query_one(self, query: str, params: list | None = None):
+        """Thread-safe: execute a query and fetch a single row atomically."""
         if not self.conn:
             raise RuntimeError("Database not connected.")
         with self._lock:
             if params is not None:
-                return self.conn.execute(query, params)
-            return self.conn.execute(query)
+                return self.conn.execute(query, params).fetchone()
+            return self.conn.execute(query).fetchone()
+
+    def query_all(self, query: str, params: list | None = None):
+        """Thread-safe: execute a query and fetch all rows atomically."""
+        if not self.conn:
+            raise RuntimeError("Database not connected.")
+        with self._lock:
+            if params is not None:
+                return self.conn.execute(query, params).fetchall()
+            return self.conn.execute(query).fetchall()
+
+    def execute(self, query: str, params: list | None = None) -> None:
+        """Thread-safe: execute a write query (INSERT/UPDATE/DELETE) with no fetch."""
+        if not self.conn:
+            raise RuntimeError("Database not connected.")
+        with self._lock:
+            if params is not None:
+                self.conn.execute(query, params)
+            else:
+                self.conn.execute(query)
 
     # -------------------------------------------------------------------------
     # Schema initialization - engines must implement this
