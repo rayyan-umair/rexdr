@@ -87,6 +87,7 @@ class WindowsEventEntityManager:
                     "Failed to update entity observation - entity=%s error=%s",
                     entity_id,
                     str(e),
+                    exc_info=True,
                 )
 
     # -------------------------------------------------------------------------
