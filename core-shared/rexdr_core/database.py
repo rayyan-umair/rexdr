@@ -62,7 +62,7 @@ class BaseDatabase(ABC):
         self.db_path = self.data_dir / ENGINE_DB_FILES[engine_id]
         self.conn: duckdb.DuckDBPyConnection | None = None
         self._attached_engines: list[EngineID] = []
-        self.lock = threading.Lock()  # For thread-safe connection management
+        self._lock = threading.Lock()
 
     # -------------------------------------------------------------------------
     # Connection management
