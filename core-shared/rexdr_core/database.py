@@ -19,6 +19,7 @@ GitHub  : github.com/rayyan-umair/rexdr
 
 # -- Standard Library --------------------------------------------------------
 import logging
+import threading
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -61,6 +62,7 @@ class BaseDatabase(ABC):
         self.db_path = self.data_dir / ENGINE_DB_FILES[engine_id]
         self.conn: duckdb.DuckDBPyConnection | None = None
         self._attached_engines: list[EngineID] = []
+        self.lock = threading.Lock()  # For thread-safe connection management
 
     # -------------------------------------------------------------------------
     # Connection management
@@ -126,6 +128,28 @@ class BaseDatabase(ABC):
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         self.close()
+
+    # -------------------------------------------------------------------------
+    # Thread-safe query execution
+    # -------------------------------------------------------------------------
+
+    def execute(self, query: str, params: list | None = None):
+        """
+        Thread-safe wrapper around self.conn.execute(). DuckDB's Python
+        connection object is not safe for concurrent use across threads -
+        engines that run a background harvester/sniffer thread alongside
+        the async pipeline (both sharing self.conn) can otherwise get
+        corrupted or truncated query results under real concurrent load,
+        even though the underlying data on disk is completely correct.
+        All engine database classes should call self.execute(...) instead
+        of self.conn.execute(...) directly.
+        """
+        if not self.conn:
+            raise RuntimeError("Database not connected.")
+        with self._lock:
+            if params is not None:
+                return self.conn.execute(query, params)
+            return self.conn.execute(query)
 
     # -------------------------------------------------------------------------
     # Schema initialization - engines must implement this

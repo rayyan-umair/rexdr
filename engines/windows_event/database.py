@@ -60,7 +60,7 @@ class WindowsEventDatabase(BaseDatabase):
         """
 
         # Raw events as received from the harvester before normalization
-        self.conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS raw_events (
                 id              VARCHAR PRIMARY KEY,
                 target_host     VARCHAR NOT NULL,
@@ -80,7 +80,7 @@ class WindowsEventDatabase(BaseDatabase):
         """)
 
         # Normalized telemetry payloads ready for intelligence processing
-        self.conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS normalized_events (
                 event_id        VARCHAR PRIMARY KEY,
                 engine_id       VARCHAR NOT NULL,
@@ -104,7 +104,7 @@ class WindowsEventDatabase(BaseDatabase):
         """)
 
         # Detections produced by the intelligence layer
-        self.conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS detections (
                 detection_id        VARCHAR PRIMARY KEY,
                 detection_code      VARCHAR NOT NULL,
@@ -125,7 +125,7 @@ class WindowsEventDatabase(BaseDatabase):
         """)
 
         # Entity observation state tracked by this engine
-        self.conn.execute("""
+        self.execute("""
             CREATE TABLE IF NOT EXISTS entity_observations (
                 entity_id           VARCHAR PRIMARY KEY,
                 entity_type         VARCHAR NOT NULL,
@@ -149,7 +149,7 @@ class WindowsEventDatabase(BaseDatabase):
 
     def insert_raw_event(self, event: dict) -> None:
         """Insert a raw event as received from the Go harvester."""
-        self.conn.execute("""
+        self.execute("""
             INSERT INTO raw_events (
                 id, target_host, target_ip, log_name, event_id,
                 time_created, level, provider_name, computer,
@@ -175,7 +175,7 @@ class WindowsEventDatabase(BaseDatabase):
 
     def mark_raw_event_processed(self, event_id: str) -> None:
         """Mark a raw event as processed after normalization."""
-        self.conn.execute(
+        self.execute(
             "UPDATE raw_events SET processed = TRUE WHERE id = ?",
             [event_id]
         )
@@ -186,7 +186,7 @@ class WindowsEventDatabase(BaseDatabase):
 
     def insert_normalized_event(self, payload: NormalizedTelemetryPayload) -> None:
         """Insert a normalized telemetry payload."""
-        self.conn.execute("""
+        self.execute("""
             INSERT INTO normalized_events (
                 event_id, engine_id, timestamp, source_ip,
                 destination_ip, source_host, destination_host,
@@ -222,7 +222,7 @@ class WindowsEventDatabase(BaseDatabase):
 
     def insert_detection(self, detection: Detection) -> None:
         """Insert a confirmed detection from the intelligence layer."""
-        self.conn.execute("""
+        self.execute("""
             INSERT INTO detections (
                 detection_id, detection_code, engine_id, timestamp,
                 severity, title, description, entity_id, entity_type,
@@ -262,7 +262,7 @@ class WindowsEventDatabase(BaseDatabase):
         status: DetectionStatus,
     ) -> None:
         """Update the status of an existing detection."""
-        self.conn.execute(
+        self.execute(
             "UPDATE detections SET status = ? WHERE detection_id = ?",
             [status.value, detection_id]
         )
@@ -288,7 +288,7 @@ class WindowsEventDatabase(BaseDatabase):
         """
         now = datetime.now(timezone.utc)
 
-        existing = self.conn.execute(
+        existing = self.execute(
             "SELECT failed_logon_count, last_logon_hosts, event_count, detection_count "
             "FROM entity_observations WHERE entity_id = ?",
             [entity_id]
@@ -305,7 +305,7 @@ class WindowsEventDatabase(BaseDatabase):
                 # Keep last 50 hosts only
                 last_logon_hosts = last_logon_hosts[-50:]
 
-            self.conn.execute("""
+            self.execute("""
                 UPDATE entity_observations SET
                     last_seen           = ?,
                     event_count         = ?,
@@ -330,7 +330,7 @@ class WindowsEventDatabase(BaseDatabase):
                 entity_id,
             ])
         else:
-            self.conn.execute("""
+            self.execute("""
                 INSERT INTO entity_observations (
                     entity_id, entity_type, last_seen, event_count,
                     detection_count, risk_contribution, behavioral_flags,
@@ -364,7 +364,7 @@ class WindowsEventDatabase(BaseDatabase):
         Count failed logon events from a source IP in the last window_minutes.
         Used by the brute force detection logic.
         """
-        result = self.conn.execute("""
+        result = self.execute("""
             SELECT COUNT(*) FROM normalized_events
             WHERE source_ip = ?
             AND event_type = 'failed_logon'
@@ -381,7 +381,7 @@ class WindowsEventDatabase(BaseDatabase):
         Get distinct destination hosts a username has logged into
         in the last window_minutes. Used for lateral movement detection.
         """
-        rows = self.conn.execute("""
+        rows = self.execute("""
             SELECT DISTINCT destination_host FROM normalized_events
             WHERE username = ?
             AND event_type IN ('successful_logon', 'network_logon')
@@ -406,7 +406,7 @@ class WindowsEventDatabase(BaseDatabase):
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
 
-        rows = self.conn.execute(query, params).fetchall()
+        rows = self.execute(query, params).fetchall()
         columns = [
             "detection_id", "detection_code", "engine_id", "timestamp",
             "severity", "title", "description", "entity_id", "entity_type",
@@ -417,7 +417,7 @@ class WindowsEventDatabase(BaseDatabase):
 
     def get_recent_events(self, limit: int = 100) -> list[dict]:
         """Get recent normalized events for the API and frontend."""
-        rows = self.conn.execute("""
+        rows = self.execute("""
             SELECT * FROM normalized_events
             ORDER BY timestamp DESC
             LIMIT ?
@@ -437,7 +437,7 @@ class WindowsEventDatabase(BaseDatabase):
         Get raw events that have not yet been normalized.
         Called by the normalization pipeline on each processing cycle.
         """
-        rows = self.conn.execute("""
+        rows = self.execute("""
             SELECT * FROM raw_events
             WHERE processed = FALSE
             ORDER BY time_created ASC
@@ -453,23 +453,23 @@ class WindowsEventDatabase(BaseDatabase):
 
     def get_stats(self) -> dict:
         """Return engine statistics for the health endpoint and dashboard."""
-        total_events = self.conn.execute(
+        total_events = self.execute(
             "SELECT COUNT(*) FROM normalized_events"
         ).fetchone()[0]
 
-        total_detections = self.conn.execute(
+        total_detections = self.execute(
             "SELECT COUNT(*) FROM detections"
         ).fetchone()[0]
 
-        open_detections = self.conn.execute(
+        open_detections = self.execute(
             "SELECT COUNT(*) FROM detections WHERE status = 'open'"
         ).fetchone()[0]
 
-        critical_detections = self.conn.execute(
+        critical_detections = self.execute(
             "SELECT COUNT(*) FROM detections WHERE severity = 'critical' AND status = 'open'"
         ).fetchone()[0]
 
-        tracked_entities = self.conn.execute(
+        tracked_entities = self.execute(
             "SELECT COUNT(*) FROM entity_observations"
         ).fetchone()[0]
 

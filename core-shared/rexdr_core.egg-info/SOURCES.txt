@@ -1,5 +1,6 @@
 pyproject.toml
 rexdr_core/__init__.py
+rexdr_core/ai_client.py
 rexdr_core/database.py
 rexdr_core/entity_store.py
 rexdr_core/entity_store_client.py
