@@ -288,11 +288,11 @@ class WindowsEventDatabase(BaseDatabase):
         """
         now = datetime.now(timezone.utc)
 
-        existing = self.execute(
+        existing = self.query_one(
             "SELECT failed_logon_count, last_logon_hosts, event_count, detection_count "
             "FROM entity_observations WHERE entity_id = ?",
             [entity_id]
-        ).fetchone()
+        )
 
         if existing:
             failed_logon_count = existing[0] + failed_logon_increment
@@ -364,12 +364,12 @@ class WindowsEventDatabase(BaseDatabase):
         Count failed logon events from a source IP in the last window_minutes.
         Used by the brute force detection logic.
         """
-        result = self.execute("""
+        result = self.query_one("""
             SELECT COUNT(*) FROM normalized_events
             WHERE source_ip = ?
             AND event_type = 'failed_logon'
             AND timestamp >= NOW() - INTERVAL ? MINUTES
-        """, [source_ip, window_minutes]).fetchone()
+        """, [source_ip, window_minutes])
         return result[0] if result else 0
 
     def get_recent_logon_hosts(
@@ -381,13 +381,13 @@ class WindowsEventDatabase(BaseDatabase):
         Get distinct destination hosts a username has logged into
         in the last window_minutes. Used for lateral movement detection.
         """
-        rows = self.execute("""
+        rows = self.query_all("""
             SELECT DISTINCT destination_host FROM normalized_events
             WHERE username = ?
             AND event_type IN ('successful_logon', 'network_logon')
             AND timestamp >= NOW() - INTERVAL ? MINUTES
             AND destination_host IS NOT NULL
-        """, [username, window_minutes]).fetchall()
+        """, [username, window_minutes])
         return [row[0] for row in rows]
 
     def get_recent_detections(
@@ -406,7 +406,7 @@ class WindowsEventDatabase(BaseDatabase):
         query += " ORDER BY timestamp DESC LIMIT ?"
         params.append(limit)
 
-        rows = self.execute(query, params).fetchall()
+        rows = self.query_all(query, params)
         columns = [
             "detection_id", "detection_code", "engine_id", "timestamp",
             "severity", "title", "description", "entity_id", "entity_type",
@@ -417,12 +417,11 @@ class WindowsEventDatabase(BaseDatabase):
 
     def get_recent_events(self, limit: int = 100) -> list[dict]:
         """Get recent normalized events for the API and frontend."""
-        rows = self.execute("""
+        rows = self.query_all("""
             SELECT * FROM normalized_events
             ORDER BY timestamp DESC
             LIMIT ?
-        """, [limit]).fetchall()
-
+        """, [limit])
         columns = [
             "event_id", "engine_id", "timestamp", "source_ip",
             "destination_ip", "source_host", "destination_host",
@@ -437,12 +436,12 @@ class WindowsEventDatabase(BaseDatabase):
         Get raw events that have not yet been normalized.
         Called by the normalization pipeline on each processing cycle.
         """
-        rows = self.execute("""
+        rows = self.query_all("""
             SELECT * FROM raw_events
             WHERE processed = FALSE
             ORDER BY time_created ASC
             LIMIT ?
-        """, [limit]).fetchall()
+        """, [limit])
 
         columns = [
             "id", "target_host", "target_ip", "log_name", "event_id",
@@ -453,25 +452,25 @@ class WindowsEventDatabase(BaseDatabase):
 
     def get_stats(self) -> dict:
         """Return engine statistics for the health endpoint and dashboard."""
-        total_events = self.execute(
+        total_events = self.query_one(
             "SELECT COUNT(*) FROM normalized_events"
-        ).fetchone()[0]
+        )[0]
 
-        total_detections = self.execute(
+        total_detections = self.query_one(
             "SELECT COUNT(*) FROM detections"
-        ).fetchone()[0]
+        )[0]
 
-        open_detections = self.execute(
+        open_detections = self.query_one(
             "SELECT COUNT(*) FROM detections WHERE status = 'open'"
-        ).fetchone()[0]
+        )[0]
 
-        critical_detections = self.execute(
+        critical_detections = self.query_one(
             "SELECT COUNT(*) FROM detections WHERE severity = 'critical' AND status = 'open'"
-        ).fetchone()[0]
+        )[0]
 
-        tracked_entities = self.execute(
+        tracked_entities = self.query_one(
             "SELECT COUNT(*) FROM entity_observations"
-        ).fetchone()[0]
+        )[0]
 
         return {
             "total_events":       total_events,
