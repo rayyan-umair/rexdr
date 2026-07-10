@@ -68,6 +68,11 @@ class DnsSettings(BaseEngineSettings):
         description="Time window in seconds for record type spike detection.",
     )
 
+    record_type_spike_dedup_window_minutes: int = Field(
+        default=60,
+        description="Minutes to suppress duplicate DNS-002 detections for the same source_ip and record_type pair.",
+    )
+
     beacon_interval_min_seconds: int = Field(
         default=25,
         description="Minimum interval in seconds to consider DNS queries as beaconing.",

@@ -153,6 +153,11 @@ class DnsDetections:
         if count < settings.record_type_spike_threshold:
             return None
 
+        if self.db.has_recent_record_type_detection(
+            src_ip, query_type, window_minutes=settings.record_type_spike_dedup_window_minutes
+        ):
+            return None
+
         severity = (
             AlertSeverity.HIGH
             if count >= settings.record_type_spike_threshold * 2

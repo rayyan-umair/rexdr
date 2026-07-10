@@ -364,6 +364,28 @@ class DnsDatabase(BaseDatabase):
             AND timestamp >= NOW() - INTERVAL '1 second' * ?
         """, [source_ip, record_type, window_seconds]).fetchone()
         return result[0] if result else 0
+    
+    def has_recent_record_type_detection(
+        self,
+        source_ip: str,
+        record_type: str,
+        window_minutes: int,
+    ) -> bool:
+        """
+        Check whether an open DNS-002 detection already exists for this
+        exact source_ip + record_type pair within the cooldown window,
+        so ongoing high-frequency query behavior produces one persistent
+        alert instead of a new detection on every qualifying query.
+        """
+        result = self.conn.execute("""
+            SELECT COUNT(*) FROM detections
+            WHERE entity_id = ?
+            AND detection_code = 'DNS-002'
+            AND status = 'open'
+            AND description LIKE '%' || ? || ' record%'
+            AND timestamp >= NOW() - INTERVAL '1 minute' * ?
+        """, [source_ip, record_type, window_minutes]).fetchone()[0]
+        return result > 0
 
     def get_query_intervals(
         self,
