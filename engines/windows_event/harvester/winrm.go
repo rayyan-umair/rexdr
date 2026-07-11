@@ -4,6 +4,13 @@ harvester/winrm.go - WinRM client and event collection
 
 Author  : Rayyan Umair
 Date    : 2026-06-12
+Updated : 2026-07-10 - collectLog now accepts and returns a checkpoint
+          (`since`), so each target+log pair only fetches events newer
+          than the last one already collected instead of always
+          re-fetching the same most-recent-N-events window. Without
+          this, the harvester looped forever re-processing the same
+          batch of events on every cycle, causing sustained high CPU
+          and never actually advancing through new activity.
 Purpose : Implements the WinRM connection client and Windows Event
           Log collection via PowerShell remoting. Queries Security,
           System, and Application event logs and returns raw event
@@ -71,17 +78,36 @@ func newWinRMClient(target Target, cfg HarvesterConfig) (*WinRMClient, error) {
 // Event collection
 // ============================================================================
 
+// collectLog fetches events for a single log on a single target. If `since`
+// is empty, this is the first collection for this target+log pair and it
+// fetches the most recent maxEvents as an initial backfill. On every
+// subsequent call, `since` holds the time_created of the newest event
+// already collected, and the query is filtered to only return events after
+// that point. The function returns the updated checkpoint alongside the
+// events - the caller is responsible for persisting it and passing it back
+// in on the next call.
 func collectLog(
 	client *WinRMClient,
 	logName string,
 	maxEvents int,
-) ([]map[string]interface{}, error) {
+	since string,
+) ([]map[string]interface{}, string, error) {
 
-	// PowerShell command to collect events and serialize to JSON
-	// Gets the last maxEvents events from the specified log
-	// Returns a JSON array of event objects
+	var getEventsLine string
+	if since == "" {
+		getEventsLine = fmt.Sprintf(
+			`$events = Get-WinEvent -LogName '%s' -MaxEvents %d -ErrorAction SilentlyContinue |`,
+			logName, maxEvents,
+		)
+	} else {
+		getEventsLine = fmt.Sprintf(
+			`$events = Get-WinEvent -FilterHashtable @{LogName='%s'; StartTime=[datetime]'%s'} -MaxEvents %d -ErrorAction SilentlyContinue |`,
+			logName, since, maxEvents,
+		)
+	}
+
 	psCommand := fmt.Sprintf(`
-$events = Get-WinEvent -LogName '%s' -MaxEvents %d -ErrorAction SilentlyContinue |
+%s
 ForEach-Object {
     $xml = [xml]$_.ToXml()
     $eventData = @{}
@@ -106,14 +132,14 @@ ForEach-Object {
     }
 }
 $events | ConvertTo-Json -Depth 5 -Compress
-`, logName, maxEvents)
+`, getEventsLine)
 
 	stdout, stderr, _, err := client.client.RunWithString(
 		winrm.Powershell(psCommand), "",
 	)
 
 	if err != nil {
-		return nil, fmt.Errorf(
+		return nil, since, fmt.Errorf(
 			"winrm command failed - target=%s log=%s error=%w",
 			client.target.Name, logName, err,
 		)
@@ -128,7 +154,7 @@ $events | ConvertTo-Json -Depth 5 -Compress
 
 	stdout = strings.TrimSpace(stdout)
 	if stdout == "" || stdout == "null" {
-		return []map[string]interface{}{}, nil
+		return []map[string]interface{}{}, since, nil
 	}
 
 	// The PowerShell output may be a single object or an array
@@ -137,7 +163,7 @@ $events | ConvertTo-Json -Depth 5 -Compress
 
 	if strings.HasPrefix(stdout, "[") {
 		if err := json.Unmarshal([]byte(stdout), &events); err != nil {
-			return nil, fmt.Errorf(
+			return nil, since, fmt.Errorf(
 				"json parse error - target=%s log=%s error=%w",
 				client.target.Name, logName, err,
 			)
@@ -146,7 +172,7 @@ $events | ConvertTo-Json -Depth 5 -Compress
 		// Single event object
 		var single map[string]interface{}
 		if err := json.Unmarshal([]byte(stdout), &single); err != nil {
-			return nil, fmt.Errorf(
+			return nil, since, fmt.Errorf(
 				"json parse single error - target=%s log=%s error=%w",
 				client.target.Name, logName, err,
 			)
@@ -154,5 +180,17 @@ $events | ConvertTo-Json -Depth 5 -Compress
 		events = []map[string]interface{}{single}
 	}
 
-	return events, nil
+	// Advance the checkpoint to the newest time_created seen in this
+	// batch. time_created is formatted as ISO 8601 with fixed-width,
+	// zero-padded fields, so plain string comparison sorts correctly -
+	// no need to parse into time.Time here.
+	newCheckpoint := since
+	for _, ev := range events {
+		tc, ok := ev["time_created"].(string)
+		if ok && tc > newCheckpoint {
+			newCheckpoint = tc
+		}
+	}
+
+	return events, newCheckpoint, nil
 }

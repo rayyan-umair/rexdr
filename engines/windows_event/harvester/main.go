@@ -141,8 +141,16 @@ func runTargetCollector(
 		target.Name, target.IP, target.Priority, interval,
 	)
 
+	// Checkpoints track, per log name, the time_created of the newest
+	// event already collected for this target. Owned exclusively by
+	// this goroutine (one per target), so no locking is needed. Held
+	// in memory only - resets on harvester restart, meaning a restart
+	// re-backfills the last maxEvents per log once, then resumes
+	// incremental collection from there.
+	checkpoints := make(map[string]string)
+
 	// Run immediately on first start then on interval
-	collectFromTarget(target, cfg, sem)
+	collectFromTarget(target, cfg, sem, checkpoints)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -153,7 +161,7 @@ func runTargetCollector(
 			log.Printf("Collector stopped - target=%s", target.Name)
 			return
 		case <-ticker.C:
-			collectFromTarget(target, cfg, sem)
+			collectFromTarget(target, cfg, sem, checkpoints)
 		}
 	}
 }
@@ -162,6 +170,7 @@ func collectFromTarget(
 	target Target,
 	cfg HarvesterConfig,
 	sem chan struct{},
+	checkpoints map[string]string,
 ) {
 	// Acquire semaphore slot
 	sem <- struct{}{}
@@ -182,7 +191,9 @@ func collectFromTarget(
 	}
 
 	for _, logName := range logs {
-		events, err := collectLog(client, logName, cfg.MaxEventsPerCycle)
+		events, newCheckpoint, err := collectLog(
+			client, logName, cfg.MaxEventsPerCycle, checkpoints[logName],
+		)
 		if err != nil {
 			log.Printf(
 				"Log collection failed - target=%s log=%s error=%v",
@@ -190,6 +201,7 @@ func collectFromTarget(
 			)
 			continue
 		}
+		checkpoints[logName] = newCheckpoint
 
 		for _, event := range events {
 			event["target_host"] = target.Name
