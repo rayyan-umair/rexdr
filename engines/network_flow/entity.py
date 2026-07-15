@@ -4,6 +4,9 @@ entity.py - Entity observation management for the Network Flow engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-17
+Updated : 2026-07-14 - process() and _update_entity() are now async, and
+          all entity_store calls are awaited, matching EntityStoreClient's
+          conversion to httpx.AsyncClient.
 Purpose : Handles all entity observation updates for the Network Flow
           engine. Translates detection results and flow data into entity
           store updates. This is the bridge between the detection layer
@@ -49,7 +52,7 @@ class NetworkFlowEntityManager:
         self.db = db
         self.entity_store = entity_store
 
-    def process(self, flow: dict, detections: list[Detection]) -> None:
+    async def process(self, flow: dict, detections: list[Detection]) -> None:
         """
         Process a flow and its detections into entity observations.
         The source IP is always tracked. The destination IP is tracked
@@ -61,7 +64,7 @@ class NetworkFlowEntityManager:
         is_external = flow.get("is_external", False)
 
         try:
-            self._update_entity(
+            await self._update_entity(
                 entity_id   = src_ip,
                 flow        = flow,
                 detections  = detections,
@@ -75,7 +78,7 @@ class NetworkFlowEntityManager:
 
         if not is_external:
             try:
-                self._update_entity(
+                await self._update_entity(
                     entity_id   = dst_ip,
                     flow        = flow,
                     detections  = detections,
@@ -91,7 +94,7 @@ class NetworkFlowEntityManager:
     # Internal
     # -------------------------------------------------------------------------
 
-    def _update_entity(
+    async def _update_entity(
         self,
         entity_id: str,
         flow: dict,
@@ -146,7 +149,7 @@ class NetworkFlowEntityManager:
 
         network_zone = flow.get("zone_source") if is_source else flow.get("zone_destination")
 
-        self.entity_store.update_observation(
+        await self.entity_store.update_observation(
             entity_id     = entity_id,
             entity_type   = EntityType.IP_ADDRESS,
             engine_id     = EngineID.NETWORK_FLOW,
@@ -157,7 +160,7 @@ class NetworkFlowEntityManager:
 
         # -- Add to entity timeline -------------------------------------------
         for detection in entity_detections:
-            self.entity_store.add_timeline_event(
+            await self.entity_store.add_timeline_event(
                 entity_id      = entity_id,
                 engine_id      = EngineID.NETWORK_FLOW,
                 event_type     = detection.detection_code,

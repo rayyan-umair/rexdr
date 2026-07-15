@@ -106,7 +106,7 @@ async def _run_scan_cycle() -> None:
             detection_count += 1
             await _broadcast_detection(detection.model_dump(mode="json"))
 
-        entity_mgr.process(asset, detections)
+        await entity_mgr.process(asset, detections)
         await _broadcast_asset(asset)
 
     logger.info(
@@ -149,7 +149,7 @@ async def lifespan(app):
     logger.info("=== REXDR Network Discovery Engine starting ===")
 
     db.connect()
-    entity_store.connect()
+    await entity_store.connect()
 
     scan_task = asyncio.create_task(run_scan_loop())
 
@@ -164,7 +164,7 @@ async def lifespan(app):
     except asyncio.CancelledError:
         pass
 
-    entity_store.close()
+    await entity_store.close()
     db.close()
     logger.info("=== Asset Discovery engine stopped ===")
 

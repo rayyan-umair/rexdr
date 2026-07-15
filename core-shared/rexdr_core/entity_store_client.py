@@ -4,6 +4,19 @@ entity_store_client.py - HTTP client for the Entity Store service
 
 Author  : Rayyan Umair
 Date    : 2026-06-23
+Updated : 2026-07-14 - Converted from synchronous httpx.Client to
+          httpx.AsyncClient. Every engine calls this client from
+          inside an async pipeline (FastAPI/uvicorn event loop). The
+          previous synchronous client blocked the entire event loop
+          for the duration of each HTTP round-trip - under load, with
+          thousands of queued events each needing 2+ sequential
+          blocking calls, this could monopolize the event loop almost
+          continuously, leaving no opportunity to service the /health
+          endpoint even though the app was otherwise working
+          correctly. This is what caused the "Could not connect to
+          server" health check failures seen under sustained load,
+          despite uvicorn having started and bound the port
+          successfully.
 Purpose : Replaces direct EntityStore instantiation in every engine.
           DuckDB enforces a single writer per file - entity_store.duckdb
           is shared platform-wide, so only the standalone Entity Store
@@ -36,27 +49,28 @@ logger = logging.getLogger(__name__)
 
 class EntityStoreClient:
     """
-    HTTP client for the standalone Entity Store service. Used by every
-    engine in place of a direct EntityStore connection.
+    Async HTTP client for the standalone Entity Store service. Used by
+    every engine in place of a direct EntityStore connection.
 
-    Usage mirrors EntityStore's own interface:
+    Usage mirrors EntityStore's own interface, but every method must
+    now be awaited:
         client = EntityStoreClient(base_url="http://entity-store:8008")
-        client.update_observation(entity_id=..., entity_type=..., ...)
+        await client.update_observation(entity_id=..., entity_type=..., ...)
     """
 
     def __init__(self, base_url: str, timeout: float = 10.0) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
-        self._client = httpx.Client(timeout=timeout)
+        self._client = httpx.AsyncClient(timeout=timeout)
 
-    def connect(self) -> None:
+    async def connect(self) -> None:
         """No-op for interface parity with EntityStore - HTTP is stateless."""
         pass
 
-    def close(self) -> None:
-        self._client.close()
+    async def close(self) -> None:
+        await self._client.aclose()
 
-    def update_observation(
+    async def update_observation(
         self,
         entity_id: str,
         entity_type: EntityType,
@@ -72,7 +86,7 @@ class EntityStoreClient:
         tags: list[str] | None = None,
     ) -> Entity | None:
         try:
-            resp = self._client.post(
+            resp = await self._client.post(
                 f"{self.base_url}/observations",
                 json={
                     "entity_id":             entity_id,
@@ -95,25 +109,25 @@ class EntityStoreClient:
             logger.error("EntityStoreClient.update_observation failed - error=%s", str(e))
             return None
 
-    def add_to_chain(self, entity_id: str, chain_id: str) -> None:
+    async def add_to_chain(self, entity_id: str, chain_id: str) -> None:
         try:
-            self._client.post(
+            await self._client.post(
                 f"{self.base_url}/chains/add",
                 json={"entity_id": entity_id, "chain_id": chain_id},
             )
         except Exception as e:
             logger.error("EntityStoreClient.add_to_chain failed - error=%s", str(e))
 
-    def remove_from_chain(self, entity_id: str, chain_id: str) -> None:
+    async def remove_from_chain(self, entity_id: str, chain_id: str) -> None:
         try:
-            self._client.post(
+            await self._client.post(
                 f"{self.base_url}/chains/remove",
                 json={"entity_id": entity_id, "chain_id": chain_id},
             )
         except Exception as e:
             logger.error("EntityStoreClient.remove_from_chain failed - error=%s", str(e))
 
-    def add_timeline_event(
+    async def add_timeline_event(
         self,
         entity_id: str,
         engine_id: EngineID,
@@ -125,7 +139,7 @@ class EntityStoreClient:
         metadata: dict | None = None,
     ) -> None:
         try:
-            self._client.post(
+            await self._client.post(
                 f"{self.base_url}/timeline",
                 json={
                     "entity_id":      entity_id,
@@ -141,9 +155,9 @@ class EntityStoreClient:
         except Exception as e:
             logger.error("EntityStoreClient.add_timeline_event failed - error=%s", str(e))
 
-    def get(self, entity_id: str) -> Entity | None:
+    async def get(self, entity_id: str) -> Entity | None:
         try:
-            resp = self._client.get(f"{self.base_url}/entities/{entity_id}")
+            resp = await self._client.get(f"{self.base_url}/entities/{entity_id}")
             if resp.status_code == 404:
                 return None
             resp.raise_for_status()
@@ -152,9 +166,9 @@ class EntityStoreClient:
             logger.error("EntityStoreClient.get failed - error=%s", str(e))
             return None
 
-    def is_healthy(self) -> bool:
+    async def is_healthy(self) -> bool:
         try:
-            resp = self._client.get(f"{self.base_url}/health", timeout=3.0)
+            resp = await self._client.get(f"{self.base_url}/health", timeout=3.0)
             return resp.status_code == 200 and resp.json().get("db_healthy", False)
         except Exception:
             return False

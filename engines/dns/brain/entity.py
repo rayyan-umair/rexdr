@@ -4,6 +4,9 @@ entity.py - Entity observation management for the DNS engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-16
+Updated : 2026-07-14 - process() and _update_entity() are now async, and
+          all entity_store calls are awaited, matching EntityStoreClient's
+          conversion to httpx.AsyncClient.
 Purpose : Handles all entity observation updates for the DNS engine.
           Translates detection results and query data into entity
           store updates - the bridge between the detection layer and
@@ -42,14 +45,14 @@ class DnsEntityManager:
         self.db = db
         self.entity_store = entity_store
 
-    def process(self, query: dict, detections: list[Detection]) -> None:
+    async def process(self, query: dict, detections: list[Detection]) -> None:
         """Process a query and its detections into entity observations."""
         src_ip = query.get("source_ip")
         if not src_ip:
             return
 
         try:
-            self._update_entity(src_ip, query, detections)
+            await self._update_entity(src_ip, query, detections)
         except Exception as e:
             logger.error(
                 "Failed to update entity observation - entity=%s error=%s",
@@ -60,7 +63,7 @@ class DnsEntityManager:
     # Internal
     # -------------------------------------------------------------------------
 
-    def _update_entity(
+    async def _update_entity(
         self,
         entity_id: str,
         query: dict,
@@ -105,7 +108,7 @@ class DnsEntityManager:
             latest_detection_code  = latest_detection_code,
         )
 
-        self.entity_store.update_observation(
+        await self.entity_store.update_observation(
             entity_id    = entity_id,
             entity_type  = EntityType.IP_ADDRESS,
             engine_id    = EngineID.DNS,
@@ -115,7 +118,7 @@ class DnsEntityManager:
 
         # -- Add to entity timeline --------------------------------------------
         for detection in entity_detections:
-            self.entity_store.add_timeline_event(
+            await self.entity_store.add_timeline_event(
                 entity_id      = entity_id,
                 engine_id      = EngineID.DNS,
                 event_type     = detection.detection_code,

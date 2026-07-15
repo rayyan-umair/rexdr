@@ -4,6 +4,13 @@ entity.py - Entity observation management for the Windows Event engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-12
+Updated : 2026-07-14 - process()/_update_entity() are now async, and all
+          entity_store calls are awaited. EntityStoreClient was converted
+          to httpx.AsyncClient - the previous synchronous client blocked
+          the entire FastAPI event loop for the duration of every HTTP
+          call, which under load could monopolize the loop almost
+          continuously and cause the /health endpoint to become
+          unreachable even though the app was otherwise working.
 Purpose : Handles all entity observation updates for the Windows Event
           engine. Translates detection results and normalized events into
           entity store updates. This is the bridge between the detection
@@ -61,7 +68,7 @@ class WindowsEventEntityManager:
         self.db = db
         self.entity_store = entity_store
 
-    def process(
+    async def process(
         self,
         payload: NormalizedTelemetryPayload,
         detections: list[Detection],
@@ -75,7 +82,7 @@ class WindowsEventEntityManager:
 
         for entity_id, entity_type, context in entities_to_update:
             try:
-                self._update_entity(
+                await self._update_entity(
                     entity_id   = entity_id,
                     entity_type = entity_type,
                     payload     = payload,
@@ -144,7 +151,7 @@ class WindowsEventEntityManager:
 
         return entities
 
-    def _update_entity(
+    async def _update_entity(
         self,
         entity_id: str,
         entity_type: EntityType,
@@ -226,7 +233,7 @@ class WindowsEventEntityManager:
             else None
         )
 
-        self.entity_store.update_observation(
+        await self.entity_store.update_observation(
             entity_id            = entity_id,
             entity_type          = entity_type,
             engine_id            = EngineID.WINDOWS_EVENT,
@@ -240,7 +247,7 @@ class WindowsEventEntityManager:
         # -- Add to entity timeline -----------------------------------------
         if entity_detections:
             for detection in entity_detections:
-                self.entity_store.add_timeline_event(
+                await self.entity_store.add_timeline_event(
                     entity_id      = entity_id,
                     engine_id      = EngineID.WINDOWS_EVENT,
                     event_type     = detection.detection_code,
@@ -249,7 +256,7 @@ class WindowsEventEntityManager:
                     detection_code = detection.detection_code,
                 )
         else:
-            self.entity_store.add_timeline_event(
+            await self.entity_store.add_timeline_event(
                 entity_id  = entity_id,
                 engine_id  = EngineID.WINDOWS_EVENT,
                 event_type = payload.event_type,

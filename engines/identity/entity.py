@@ -4,6 +4,10 @@ entity.py - Entity observation management for the Identity engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-18
+Updated : 2026-07-14 - process(), process_detection_only(), and their
+          internal helpers are now async, and all entity_store calls
+          are awaited, matching EntityStoreClient's conversion to
+          httpx.AsyncClient.
 Purpose : Handles all entity observation updates for the Identity
           engine. Translates detection results and event/diff data
           into entity store updates - the bridge between the detection
@@ -42,7 +46,7 @@ class IdentityEntityManager:
         self.db = db
         self.entity_store = entity_store
 
-    def process(
+    async def process(
         self,
         payload: NormalizedTelemetryPayload,
         detections: list[Detection],
@@ -53,21 +57,21 @@ class IdentityEntityManager:
             return
 
         try:
-            self._update_entity(username, payload, detections)
+            await self._update_entity(username, payload, detections)
         except Exception as e:
             logger.error(
                 "Failed to update entity observation - entity=%s error=%s",
                 username, str(e),
             )
 
-    def process_detection_only(self, detection: Detection) -> None:
+    async def process_detection_only(self, detection: Detection) -> None:
         """
         Process a standalone detection not tied to a normalized event -
         used for AD-002 group diff detections which originate from the
         domain snapshot engine, not from a live event stream.
         """
         try:
-            self._apply_detection(detection.entity_id, [detection])
+            await self._apply_detection(detection.entity_id, [detection])
         except Exception as e:
             logger.error(
                 "Failed to update entity from standalone detection - entity=%s error=%s",
@@ -78,7 +82,7 @@ class IdentityEntityManager:
     # Internal
     # -------------------------------------------------------------------------
 
-    def _update_entity(
+    async def _update_entity(
         self,
         entity_id: str,
         payload: NormalizedTelemetryPayload,
@@ -90,9 +94,9 @@ class IdentityEntityManager:
             if payload.event_type in ("successful_logon", "network_logon")
             else None
         )
-        self._apply_detection(entity_id, entity_detections, new_auth_host=new_auth_host)
+        await self._apply_detection(entity_id, entity_detections, new_auth_host=new_auth_host)
 
-    def _apply_detection(
+    async def _apply_detection(
         self,
         entity_id: str,
         entity_detections: list[Detection],
@@ -130,7 +134,7 @@ class IdentityEntityManager:
             latest_detection_code  = latest_detection_code,
         )
 
-        self.entity_store.update_observation(
+        await self.entity_store.update_observation(
             entity_id    = entity_id,
             entity_type  = EntityType.USER_ACCOUNT,
             engine_id    = EngineID.IDENTITY,
@@ -140,7 +144,7 @@ class IdentityEntityManager:
 
         # -- Add to entity timeline --------------------------------------------
         for detection in entity_detections:
-            self.entity_store.add_timeline_event(
+            await self.entity_store.add_timeline_event(
                 entity_id      = entity_id,
                 engine_id      = EngineID.IDENTITY,
                 event_type     = detection.detection_code,

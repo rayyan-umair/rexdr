@@ -149,7 +149,7 @@ async def _pipeline_cycle() -> None:
                 await _broadcast_detection(detection.model_dump(mode="json"))
 
             # -- Step 5: Update entity observations -----------------------------
-            entity_mgr.process(enriched_flow, detections)
+            await entity_mgr.process(enriched_flow, detections)
 
             # -- Step 6: Broadcast flow to WebSocket clients ---------------------
             await _broadcast_flow(enriched_flow)
@@ -211,7 +211,7 @@ async def lifespan(app):
     db.connect()
     logger.info("Database connected")
 
-    entity_store.connect()
+    await entity_store.connect()
     logger.info("Entity store connected")
 
     # Start the packet capture thread
@@ -238,7 +238,7 @@ async def lifespan(app):
     except asyncio.CancelledError:
         pass
 
-    entity_store.close()
+    await entity_store.close()
     db.close()
 
     logger.info("=== Network Flow engine stopped ===")

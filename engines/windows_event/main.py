@@ -180,7 +180,7 @@ async def _pipeline_cycle() -> None:
                 await _broadcast_detection(detection.model_dump(mode="json"))
 
             # -- Step 7: Update entity observations -------------------------
-            entity_mgr.process(payload, detections)
+            await entity_mgr.process(payload, detections)
 
             # -- Step 8: Broadcast event to WebSocket clients ---------------
             await _broadcast_event(payload.model_dump(mode="json"))
@@ -305,7 +305,7 @@ async def lifespan(app):
     db.connect()
     logger.info("Database connected")
 
-    entity_store.connect()
+    await entity_store.connect()
     logger.info("Entity store connected")
 
     harvester_thread = threading.Thread(target=harvester_worker, daemon=True)
@@ -339,7 +339,7 @@ async def lifespan(app):
     if zmq_context:
         zmq_context.term()
 
-    entity_store.close()
+    await entity_store.close()
     db.close()
 
     logger.info("=== Windows Event engine stopped ===")

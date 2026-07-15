@@ -4,6 +4,9 @@ entity.py - Entity observation management for the Asset Discovery engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-19
+Updated : 2026-07-14 - process() and _update_entity() are now async, and
+          all entity_store calls are awaited, matching EntityStoreClient's
+          conversion to httpx.AsyncClient.
 Purpose : Handles entity observation updates for the Asset Discovery
           engine. Every scanned asset becomes or updates an entity in
           the unified REXDR entity model, carrying hostname, MAC
@@ -45,14 +48,14 @@ class AssetDiscoveryEntityManager:
         self.db = db
         self.entity_store = entity_store
 
-    def process(self, asset: dict, detections: list[Detection]) -> None:
+    async def process(self, asset: dict, detections: list[Detection]) -> None:
         """Process a scanned asset and its detections into entity observations."""
         entity_id = asset.get("ip_address")
         if not entity_id:
             return
 
         try:
-            self._update_entity(entity_id, asset, detections)
+            await self._update_entity(entity_id, asset, detections)
         except Exception as e:
             logger.error(
                 "Failed to update entity observation - entity=%s error=%s",
@@ -63,7 +66,7 @@ class AssetDiscoveryEntityManager:
     # Internal
     # -------------------------------------------------------------------------
 
-    def _update_entity(
+    async def _update_entity(
         self,
         entity_id: str,
         asset: dict,
@@ -100,7 +103,7 @@ class AssetDiscoveryEntityManager:
             latest_detection_code  = latest_detection_code,
         )
 
-        self.entity_store.update_observation(
+        await self.entity_store.update_observation(
             entity_id     = entity_id,
             entity_type   = EntityType.IP_ADDRESS,
             engine_id     = EngineID.ASSET_DISCOVERY,
@@ -113,7 +116,7 @@ class AssetDiscoveryEntityManager:
         )
 
         for detection in entity_detections:
-            self.entity_store.add_timeline_event(
+            await self.entity_store.add_timeline_event(
                 entity_id      = entity_id,
                 engine_id      = EngineID.ASSET_DISCOVERY,
                 event_type     = detection.detection_code,

@@ -164,7 +164,7 @@ async def _event_pipeline_cycle() -> None:
                 await publish_detection(detection.model_dump(mode="json"))
                 await _broadcast_detection(detection.model_dump(mode="json"))
 
-            entity_mgr.process(payload, detections)
+            await entity_mgr.process(payload, detections)
             db.mark_raw_event_processed(event_id)
             processed_count += 1
 
@@ -209,7 +209,7 @@ async def _snapshot_cycle() -> None:
             detections = detector.run_group_diff(diff)
             for detection in detections:
                 db.insert_detection(detection)
-                entity_mgr.process_detection_only(detection)
+                await entity_mgr.process_detection_only(detection)
                 await publish_detection(detection.model_dump(mode="json"))
                 await _broadcast_detection(detection.model_dump(mode="json"))
 
@@ -300,7 +300,7 @@ async def lifespan(app):
     logger.info("=== REXDR Active Directory Intelligence Engine starting ===")
 
     db.connect()
-    entity_store.connect()
+    await entity_store.connect()
     await init_zmq()
 
     collector_thread = threading.Thread(target=collector_worker, daemon=True)
@@ -330,7 +330,7 @@ async def lifespan(app):
     if zmq_context:
         zmq_context.term()
 
-    entity_store.close()
+    await entity_store.close()
     db.close()
     logger.info("=== Identity engine stopped ===")
 
