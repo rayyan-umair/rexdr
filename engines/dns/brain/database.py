@@ -386,6 +386,28 @@ class DnsDatabase(BaseDatabase):
             AND timestamp >= NOW() - INTERVAL '1 minute' * ?
         """, [source_ip, record_type, window_minutes]).fetchone()[0]
         return result > 0
+    
+    def has_recent_entropy_detection(
+        self,
+        source_ip: str,
+        query_name: str,
+        window_minutes: int,
+    ) -> bool:
+        """
+        Check whether an open DNS-001 detection already exists for this
+        exact source_ip + query_name pair within the cooldown window,
+        so repeated queries to the same high-entropy subdomain produce
+        one persistent alert instead of a new detection every time.
+        """
+        result = self.conn.execute("""
+            SELECT COUNT(*) FROM detections
+            WHERE entity_id = ?
+            AND detection_code = 'DNS-001'
+            AND status = 'open'
+            AND description LIKE '%' || ? || '%'
+            AND timestamp >= NOW() - INTERVAL '1 minute' * ?
+        """, [source_ip, query_name, window_minutes]).fetchone()[0]
+        return result > 0
 
     def get_query_intervals(
         self,

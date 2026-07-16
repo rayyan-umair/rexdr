@@ -4,6 +4,13 @@ detections.py - Detection logic for the DNS engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-16
+Updated : 2026-07-16 - DNS-001 (High Entropy Subdomain) now checks for
+          an existing open detection on the same src_ip + query_name
+          pair within a cooldown window before creating a new one,
+          same pattern already applied to DNS-002. Previously this
+          detector fired on every qualifying query, producing dozens
+          of duplicate detections for the same repeated subdomain
+          lookup instead of one persistent alert.
 Purpose : Implements all five detection algorithms for the DNS
           Behavioral Intelligence engine. Each detection is a
           self-contained method that receives an enriched query,
@@ -85,6 +92,8 @@ class DnsDetections:
         DNS-001 - High Entropy Subdomain Detection
         Fires when a queried subdomain's Shannon entropy exceeds
         entropy_threshold, indicating likely DGA malware or DNS tunneling.
+        Suppressed if an open detection already exists for this exact
+        src_ip + query_name pair within the cooldown window.
 
         MITRE: T1568.002 - Dynamic Resolution - Domain Generation Algorithms
         """
@@ -95,6 +104,13 @@ class DnsDetections:
 
         src_ip = query.get("source_ip")
         if not src_ip:
+            return None
+
+        query_name = query.get("query_name")
+
+        if self.db.has_recent_entropy_detection(
+            src_ip, query_name, window_minutes=settings.entropy_dedup_window_minutes
+        ):
             return None
 
         severity = (
