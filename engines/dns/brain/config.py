@@ -78,6 +78,11 @@ class DnsSettings(BaseEngineSettings):
         description="Minutes to suppress duplicate DNS-001 detections for the same source_ip and query_name pair.",
     )
 
+    dns_beacon_dedup_window_minutes: int = Field(
+        default=60,
+        description="Minutes to suppress duplicate DNS-003 detections for the same source_ip and query_name pair.",
+    )
+
     beacon_interval_min_seconds: int = Field(
         default=25,
         description="Minimum interval in seconds to consider DNS queries as beaconing.",

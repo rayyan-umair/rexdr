@@ -241,6 +241,11 @@ class DnsDetections:
         if coefficient_of_variation >= 0.3:
             return None
 
+        if self.db.has_recent_dns_beacon_detection(
+            src_ip, query_name, window_minutes=settings.dns_beacon_dedup_window_minutes
+        ):
+            return None
+
         severity = (
             AlertSeverity.CRITICAL
             if coefficient_of_variation < 0.1

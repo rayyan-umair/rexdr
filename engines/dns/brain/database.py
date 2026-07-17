@@ -408,6 +408,28 @@ class DnsDatabase(BaseDatabase):
             AND timestamp >= NOW() - INTERVAL '1 minute' * ?
         """, [source_ip, query_name, window_minutes]).fetchone()[0]
         return result > 0
+    
+    def has_recent_dns_beacon_detection(
+        self,
+        source_ip: str,
+        query_name: str,
+        window_minutes: int,
+    ) -> bool:
+        """
+        Check whether an open DNS-003 detection already exists for this
+        exact source_ip + query_name pair within the cooldown window,
+        so ongoing DNS beaconing behavior produces one persistent alert
+        instead of a new detection on every qualifying query.
+        """
+        result = self.conn.execute("""
+            SELECT COUNT(*) FROM detections
+            WHERE entity_id = ?
+            AND detection_code = 'DNS-003'
+            AND status = 'open'
+            AND description LIKE '%' || ? || '%'
+            AND timestamp >= NOW() - INTERVAL '1 minute' * ?
+        """, [source_ip, query_name, window_minutes]).fetchone()[0]
+        return result > 0
 
     def get_query_intervals(
         self,
