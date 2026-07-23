@@ -4,6 +4,14 @@
  *
  * Author  : Rayyan Umair
  * Date    : 2026-06-20
+ * Updated : 2026-07-23 - Added a dedicated Assets table for the Asset
+ *           Discovery engine, showing real inventory data (IP, hostname,
+ *           MAC, OS fingerprint, open ports, services, last seen, scan
+ *           count) instead of only ever showing detections. Previously
+ *           this page only ever rendered "Recent Detections" for every
+ *           engine, even though asset-discovery's /assets endpoint
+ *           already returns rich per-host inventory data with nowhere
+ *           in the UI to see it.
  * Purpose : Single templated page that renders the detail view for
  *           whichever of the eight engines is active, based on the
  *           route param. Shows engine-specific stats, recent detections,
@@ -16,7 +24,7 @@
 
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Server } from "lucide-react";
 import { colors, ENGINES } from "../design/tokens";
 import { usePolling } from "../hooks/usePolling";
 import { useLiveStream } from "../hooks/useLiveStream";
@@ -26,6 +34,16 @@ import SeverityBadge from "../components/Shared/SeverityBadge";
 import EmptyState from "../components/Shared/EmptyState";
 import InvestigationBlade from "../components/InvestigationBlade/InvestigationBlade";
 import { formatDistanceToNow } from "date-fns";
+
+function safeParse(value, fallback) {
+  if (value == null) return fallback;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+}
 
 export default function EngineView({ onAskAI }) {
   const { engineId } = useParams();
@@ -47,12 +65,21 @@ export default function EngineView({ onAskAI }) {
     [engineId]
   );
 
+  const isAssetDiscovery = engineId === "asset_discovery";
+
+  const { data: assetsData } = usePolling(
+    () => (isAssetDiscovery ? client.assets() : Promise.resolve({ assets: [] })),
+    20000,
+    [engineId]
+  );
+
   if (!engine) {
     return <EmptyState icon={AlertTriangle} title="Unknown engine" />;
   }
 
   const stats = statsData?.stats || {};
   const detections = detectionsData?.detections || [];
+  const assets = assetsData?.assets || [];
 
   return (
     <div style={{ display: "flex", height: "100%" }}>
@@ -82,6 +109,96 @@ export default function EngineView({ onAskAI }) {
             />
           ))}
         </div>
+
+        {isAssetDiscovery && (
+          <div style={{ padding: "0 20px 20px" }}>
+            <div
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: colors.textTertiary,
+                letterSpacing: "0.05em",
+                marginBottom: "12px",
+              }}
+            >
+              DISCOVERED ASSETS
+            </div>
+
+            {assets.length === 0 ? (
+              <EmptyState
+                icon={Server}
+                title="No assets discovered yet"
+                description="Discovered hosts will appear here once a scan cycle completes."
+              />
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+                      {["IP Address", "Hostname", "MAC Address", "OS Fingerprint", "Open Ports", "Services", "Last Seen", "Scans"].map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            textAlign: "left",
+                            padding: "8px 12px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            color: colors.textTertiary,
+                            letterSpacing: "0.03em",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assets.map((a) => {
+                      const ports = safeParse(a.open_ports, []);
+                      const services = safeParse(a.services, {});
+                      return (
+                        <tr
+                          key={a.ip_address}
+                          style={{ borderBottom: `1px solid ${colors.border}` }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = colors.surface)}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <td style={{ padding: "10px 12px", fontFamily: "'JetBrains Mono', monospace", color: colors.textPrimary, whiteSpace: "nowrap" }}>
+                            {a.ip_address}
+                          </td>
+                          <td style={{ padding: "10px 12px", color: colors.textSecondary, whiteSpace: "nowrap" }}>
+                            {a.hostname || <span style={{ color: colors.textTertiary }}>—</span>}
+                          </td>
+                          <td style={{ padding: "10px 12px", fontFamily: "'JetBrains Mono', monospace", color: colors.textSecondary, whiteSpace: "nowrap" }}>
+                            {a.mac_address || <span style={{ color: colors.textTertiary }}>—</span>}
+                          </td>
+                          <td style={{ padding: "10px 12px", color: colors.textSecondary }}>
+                            {a.os_fingerprint || <span style={{ color: colors.textTertiary }}>—</span>}
+                          </td>
+                          <td style={{ padding: "10px 12px", color: colors.textSecondary, whiteSpace: "nowrap" }}>
+                            {ports.length > 0 ? ports.join(", ") : <span style={{ color: colors.textTertiary }}>none</span>}
+                          </td>
+                          <td style={{ padding: "10px 12px", color: colors.textSecondary, fontSize: "12px" }}>
+                            {Object.keys(services).length > 0
+                              ? Object.entries(services).map(([port, name]) => `${port}: ${name}`).join(", ")
+                              : <span style={{ color: colors.textTertiary }}>—</span>}
+                          </td>
+                          <td style={{ padding: "10px 12px", color: colors.textTertiary, whiteSpace: "nowrap" }}>
+                            {a.last_seen && formatDistanceToNow(new Date(a.last_seen), { addSuffix: true })}
+                          </td>
+                          <td style={{ padding: "10px 12px", color: colors.textTertiary, textAlign: "right" }}>
+                            {a.scan_count}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ padding: "0 20px 20px" }}>
           <div
