@@ -92,6 +92,11 @@ export const response = {
   health:    () => request("/response/health"),
   cases:     (limit = 50) => request(`/response/cases?limit=${limit}`),
   case:      (caseId) => request(`/response/cases/${caseId}`),
+  closeCase: (caseId, resolution) =>
+    request(`/response/cases/${caseId}/close`, {
+      method: "POST",
+      body: JSON.stringify({ resolution }),
+    }),
   actions:   (limit = 100) => request(`/response/actions?limit=${limit}`),
   playbooks: () => request("/response/playbooks"),
   stats:     () => request("/response/stats"),

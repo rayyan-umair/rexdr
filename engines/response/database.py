@@ -140,6 +140,27 @@ class ResponseDatabase(BaseDatabase):
             case.case_id, case.entity_id, case.severity.value,
         )
 
+    def close_case(self, case_id: str, resolution: str) -> bool:
+        """Mark a case as closed with a resolution note. Returns False if the case doesn't exist."""
+        existing = self.conn.execute(
+            "SELECT COUNT(*) FROM case_files WHERE case_id = ?",
+            [case_id]
+        ).fetchone()
+
+        if not existing or existing[0] == 0:
+            return False
+
+        self.conn.execute("""
+            UPDATE case_files SET
+                is_closed   = TRUE,
+                closed_at   = ?,
+                resolution  = ?
+            WHERE case_id = ?
+        """, [datetime.now(timezone.utc), resolution, case_id])
+
+        logger.info("Case closed - case_id=%s", case_id)
+        return True
+
     def mark_chain_responded(self, chain_id: str, case_id: str) -> None:
         """Record that a chain has been responded to, preventing duplicate response."""
         self.conn.execute("""

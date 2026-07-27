@@ -53,6 +53,8 @@ class CasesResponse(BaseModel):
     cases:     list[dict[str, Any]]
     timestamp: datetime
 
+class CloseCaseRequest(BaseModel):
+    resolution: str
 
 class ActionsResponse(BaseModel):
     engine:    str
@@ -145,6 +147,13 @@ def create_app(db: ResponseDatabase, playbook_engine: PlaybookEngine) -> FastAPI
             if c.get("case_id") == case_id:
                 return c
         raise HTTPException(status_code=404, detail=f"Case {case_id} not found.")
+
+    @app.post("/cases/{case_id}/close", tags=["Cases"])
+    async def close_case(case_id: str, body: CloseCaseRequest) -> dict:
+        closed = db.close_case(case_id, body.resolution)
+        if not closed:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found.")
+        return {"case_id": case_id, "is_closed": True, "resolution": body.resolution}
 
     @app.get("/actions", response_model=ActionsResponse, tags=["Actions"])
     async def get_actions(limit: int = 100) -> ActionsResponse:
