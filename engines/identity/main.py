@@ -209,7 +209,7 @@ async def _snapshot_cycle() -> None:
             detections = detector.run_group_diff(diff)
             for detection in detections:
                 db.insert_detection(detection)
-                await entity_mgr.process_detection_only(detection)
+                await entity_mgr.process_detection_only(detection, new_group=diff.group_name)
                 await publish_detection(detection.model_dump(mode="json"))
                 await _broadcast_detection(detection.model_dump(mode="json"))
 

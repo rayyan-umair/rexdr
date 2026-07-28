@@ -64,14 +64,20 @@ class IdentityEntityManager:
                 username, str(e),
             )
 
-    async def process_detection_only(self, detection: Detection) -> None:
+    async def process_detection_only(
+        self,
+        detection: Detection,
+        new_group: str | None = None,
+    ) -> None:
         """
         Process a standalone detection not tied to a normalized event -
         used for AD-002 group diff detections which originate from the
-        domain snapshot engine, not from a live event stream.
+        domain snapshot engine, not from a live event stream. new_group
+        is the group this entity's membership changed in, so it gets
+        recorded in the entity's known_groups history.
         """
         try:
-            await self._apply_detection(detection.entity_id, [detection])
+            await self._apply_detection(detection.entity_id, [detection], new_group=new_group)
         except Exception as e:
             logger.error(
                 "Failed to update entity from standalone detection - entity=%s error=%s",
