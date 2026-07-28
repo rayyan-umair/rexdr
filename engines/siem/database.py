@@ -174,6 +174,26 @@ class SiemDatabase(BaseDatabase):
             WHERE chain_id = ?
         """, [case_file_id, datetime.now(timezone.utc), chain_id])
 
+    def link_case_file(self, chain_id: str, case_file_id: str) -> bool:
+        """Attach a case file reference to a chain without altering its
+        active/contained status. Returns False if the chain doesn't exist."""
+        existing = self.conn.execute(
+            "SELECT COUNT(*) FROM attack_chains WHERE chain_id = ?",
+            [chain_id]
+        ).fetchone()
+
+        if not existing or existing[0] == 0:
+            return False
+
+        self.conn.execute("""
+            UPDATE attack_chains SET
+                case_file_id = ?,
+                updated_at   = ?
+            WHERE chain_id = ?
+        """, [case_file_id, datetime.now(timezone.utc), chain_id])
+
+        return True
+
     # -------------------------------------------------------------------------
     # Read operations
     # -------------------------------------------------------------------------

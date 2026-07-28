@@ -136,6 +136,7 @@ class ResponseOrchestrator:
         case, file_path = self.forensic_triage.create_case(chain, actions_taken)
         self.db.insert_case_file(case, file_path)
         self.db.mark_chain_responded(chain_id, str(case.case_id))
+        await self._link_case_to_chain(chain_id, str(case.case_id))
         self.db.upsert_entity_observation(
             entity_id    = entity_id,
             entity_type  = EntityType.USER_ACCOUNT,
@@ -151,6 +152,24 @@ class ResponseOrchestrator:
             "actions":    actions_taken,
             "file_path":  file_path,
         }
+
+    async def _link_case_to_chain(self, chain_id: str, case_id: str) -> None:
+        """Notify SIEM of the case file created for this chain, so the
+        chain record carries a working case_file_id back-reference.
+        Best-effort - a failure here does not affect case creation,
+        which has already succeeded and is the source of truth."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"{settings.siem_engine_url}/chains/{chain_id}/case",
+                    json={"case_file_id": case_id},
+                )
+                response.raise_for_status()
+        except Exception as e:
+            logger.warning(
+                "Failed to link case file to chain - chain_id=%s case_id=%s error=%s",
+                chain_id, case_id, str(e),
+            )
 
     async def _execute_playbook(self, playbook, chain: dict) -> list[str]:
         """Execute every action defined in a matched playbook in sequence."""
