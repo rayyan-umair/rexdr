@@ -22,8 +22,20 @@ import logging
 import sys
 from pathlib import Path
 
+# ============================================================================
+# This file lives inside launcher/, so running it as a script puts launcher/
+# on sys.path rather than the repo root - which makes `import launcher...`
+# fail. Put the repo root on the path before importing anything internal, so
+# the launcher starts the same way whether it is run from the repo root, from
+# inside launcher/, or from an IDE's run button.
+# ============================================================================
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 # -- Internal ----------------------------------------------------------------
-from launcher.launcher_ui import RexdrLauncher
+from launcher.launcher_ui import RexdrLauncher  # noqa: E402
 
 # ============================================================================
 

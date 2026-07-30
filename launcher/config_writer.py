@@ -28,6 +28,13 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+# Keys the wizard owns. Anything else already in .env is preserved on write.
+MANAGED_ENV_KEYS = [
+    "WINRM_USERNAME", "WINRM_PASSWORD", "LDAP_BASE_DN", "LDAP_DOMAIN",
+    "CAPTURE_INTERFACE", "AI_PROVIDER", "AI_API_KEY", "AI_MODEL", "AI_BASE_URL",
+    "NVD_API_KEY", "DB_RETENTION_DAYS", "SCAN_INTERVAL_MINUTES",
+    "CVE_SYNC_INTERVAL_HOURS",
+]
 
 class ConfigWriter:
     """
@@ -90,6 +97,18 @@ class ConfigWriter:
             f"CVE_SYNC_INTERVAL_HOURS={values.get('CVE_SYNC_INTERVAL_HOURS', '24')}",
             "",
         ]
+
+        # Anything hand-added to .env that the wizard does not manage is kept.
+        # Without this, saving the wizard silently deletes tuning values like
+        # CVE_SYNC_LOOKBACK_DAYS that were set outside the UI.
+        existing = self.read_env()
+        extras = {k: v for k, v in existing.items() if k not in MANAGED_ENV_KEYS}
+
+        if extras:
+            lines.append("# -- Preserved from previous configuration -------------------------------------")
+            for key, value in extras.items():
+                lines.append(f"{key}={value}")
+            lines.append("")
 
         self.env_path.write_text("\n".join(lines), encoding="utf-8")
         logger.info(".env written - path=%s", self.env_path)

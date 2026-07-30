@@ -64,6 +64,8 @@ ENGINE_DISPLAY_NAMES = {
     "vulnerability":   "Vulnerability Intelligence",
     "frontend":        "Frontend",
     "nginx":           "Gateway",
+    "entity_store":    "Entity Store",
+    "windows-event":   "Windows Event Intelligence",
 }
 
 
@@ -168,8 +170,8 @@ class RexdrLauncher(tk.Tk):
             ("Active Directory", [
                 ("WINRM_USERNAME", "Domain admin username", False),
                 ("WINRM_PASSWORD", "Password", True),
-                ("LDAP_BASE_DN", "LDAP base DN (e.g. DC=corp,DC=local)", False),
-                ("LDAP_DOMAIN", "Domain name (e.g. corp.local)", False),
+                ("LDAP_BASE_DN", "LDAP base DN (e.g. DC=example,DC=local)", False),
+                ("LDAP_DOMAIN", "Domain name (e.g. example.local)", False),
             ]),
             ("Network Capture", [
                 ("CAPTURE_INTERFACE", "Capture interface (e.g. eth0)", False),
@@ -312,8 +314,23 @@ class RexdrLauncher(tk.Tk):
     # -------------------------------------------------------------------------
 
     def _append_log(self, line: str) -> None:
-        self.log_text.insert("end", line + "\n")
-        self.log_text.see("end")
+        """
+        Thread-safe log append. Docker output arrives on a background
+        thread, and touching a Tk widget from anywhere but the main
+        thread causes intermittent hangs and crashes - so marshal the
+        write back onto the main loop via after().
+        """
+        self.after(0, self._append_log_main_thread, line)
+
+    def _append_log_main_thread(self, line: str) -> None:
+        if not self._dashboard_active:
+            return
+        try:
+            self.log_text.insert("end", line + "\n")
+            self.log_text.see("end")
+        except tk.TclError:
+            # Widget was destroyed mid-write (view switched during a build)
+            pass
 
     def _on_build(self) -> None:
         self._append_log("Preparing build - distributing rexdr_core wheel...")
@@ -368,18 +385,24 @@ class RexdrLauncher(tk.Tk):
     def _poll_status(self) -> None:
         if not self._dashboard_active:
             return
+        self.engine_manager.run_async(self._fetch_status)
+        self.after(5000, self._poll_status)
 
+    def _fetch_status(self) -> None:
+        """Runs on a background thread - hands results back via after()."""
         statuses = self.engine_manager.get_status()
+        self.after(0, self._apply_status, statuses)
 
+    def _apply_status(self, statuses) -> None:
         if not self._dashboard_active:
             return
-
         for service, status in statuses.items():
             row = self.status_rows.get(service)
             if not row:
                 continue
             color = STATUS_COLORS.get(status, COLORS["text_tertiary"])
-            row["dot"].itemconfig(row["dot_id"], fill=color)
-            row["label"].config(text=status.value, foreground=color)
-
-        self.after(5000, self._poll_status)
+            try:
+                row["dot"].itemconfig(row["dot_id"], fill=color)
+                row["label"].config(text=status.value, foreground=color)
+            except tk.TclError:
+                return
