@@ -434,11 +434,14 @@ services:
     build:
       context: ./engines/vulnerability
       dockerfile: Dockerfile
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - rexdr_internal
     environment:
       ENGINE_ID: "vulnerability"
       API_PORT: "8007"
+      ASSET_DISCOVERY_ENGINE_URL: "http://host.docker.internal:8006"
       NVD_API_KEY: "${NVD_API_KEY:-}"
       CVE_SYNC_INTERVAL_HOURS: "${CVE_SYNC_INTERVAL_HOURS:-24}"
       DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
