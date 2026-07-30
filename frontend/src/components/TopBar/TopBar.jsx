@@ -135,10 +135,11 @@ export default function TopBar({ onOpenSearch, onToggleAI, alertCount = 0, aiEna
   }
 
   function toggleNotifications() {
-    setNotifOpen((open) => {
-      if (!open) persistSeenCount(alertCount);
-      return !open;
-    });
+    const opening = !notifOpen;
+    setNotifOpen(opening);
+    if (opening) {
+      persistSeenCount(alertCount);
+    }
   }
 
   function handleSelectNotification(d) {
@@ -247,7 +248,7 @@ export default function TopBar({ onOpenSearch, onToggleAI, alertCount = 0, aiEna
             }}
           >
             <Bell size={15} />
-            {alertCount > 0 && (
+            {unreadCount > 0 && (
               <span
                 style={{
                   position: "absolute",
@@ -266,7 +267,7 @@ export default function TopBar({ onOpenSearch, onToggleAI, alertCount = 0, aiEna
                   padding: "0 4px",
                 }}
               >
-                {alertCount > 99 ? "99+" : alertCount}
+                {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
           </button>
