@@ -204,21 +204,15 @@ def create_app(
                 return c
         raise HTTPException(status_code=404, detail=f"Chain {chain_id} not found.")
 
-    @app.post("/chains/{chain_id}/resolve", tags=["Chains"])
-    async def resolve_chain(
-        chain_id: str,
-        body: ResolveChainRequest = ResolveChainRequest(),
-    ) -> dict:
-        """
-        Mark a chain resolved once its case file has been closed. This is
-        what gives chains a lifecycle - without it a chain stays active
-        forever and chain_exists_for_entity() permanently blocks that
-        entity from ever forming another one.
-        """
-        resolved = db.resolve_chain(chain_id, body.case_file_id)
-        if not resolved:
+    @app.post("/chains/{chain_id}/case", tags=["Chains"])
+    async def link_case_file(chain_id: str, body: LinkCaseFileRequest) -> dict:
+        """Attach a case file reference to a chain. Called by the Response
+        engine right after it creates a case, so the chain's case_file_id
+        back-reference gets populated while the case is still open."""
+        linked = db.link_case_file(chain_id, body.case_file_id)
+        if not linked:
             raise HTTPException(status_code=404, detail=f"Chain {chain_id} not found.")
-        return {"chain_id": chain_id, "is_active": False}
+        return {"chain_id": chain_id, "case_file_id": body.case_file_id}
 
     # -------------------------------------------------------------------------
     # Sigma rules
