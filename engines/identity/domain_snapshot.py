@@ -69,6 +69,7 @@ class DomainSnapshotEngine:
             user=f"{settings.winrm_username}@{settings.ldap_domain}",
             password=settings.winrm_password,
             auto_bind=True,
+            auto_referrals=False,
         )
         return conn
 
