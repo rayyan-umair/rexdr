@@ -31,7 +31,8 @@ import SeverityBadge from "../Shared/SeverityBadge";
 import EngineBadge from "../Shared/EngineBadge";
 import EmptyState from "../Shared/EmptyState";
 
-const NOTIFICATION_DISPLAY_LIMIT = 8;
+const NOTIFICATION_DISPLAY_LIMIT = 50;
+const SEEN_STORAGE_KEY = "rexdr.alerts.lastSeenCount";
 
 export default function TopBar({ onOpenSearch, onToggleAI, alertCount = 0, aiEnabled = false }) {
   const [now, setNow] = useState(new Date());
@@ -40,6 +41,13 @@ export default function TopBar({ onOpenSearch, onToggleAI, alertCount = 0, aiEna
   const [notifications, setNotifications] = useState([]);
   const [notifTotal, setNotifTotal] = useState(0);
   const [bellHovered, setBellHovered] = useState(false);
+  const [lastSeenCount, setLastSeenCount] = useState(() => {
+    try {
+      return Number(window.localStorage.getItem(SEEN_STORAGE_KEY)) || 0;
+    } catch {
+      return 0;
+    }
+  });
   const bellRef = useRef(null);
   const navigate = useNavigate();
 
@@ -107,10 +115,38 @@ export default function TopBar({ onOpenSearch, onToggleAI, alertCount = 0, aiEna
     };
   }, [notifOpen]);
 
+  // If alerts were closed elsewhere the total can drop below what was last
+  // seen, which would leave the badge permanently suppressed. Clamp down so a
+  // genuinely new alert still surfaces.
+  useEffect(() => {
+    if (alertCount < lastSeenCount) {
+      persistSeenCount(alertCount);
+    }
+  }, [alertCount, lastSeenCount]);
+
+  function persistSeenCount(count) {
+    setLastSeenCount(count);
+    try {
+      window.localStorage.setItem(SEEN_STORAGE_KEY, String(count));
+    } catch {
+      // Storage unavailable (private mode, quota) - badge still clears for
+      // this session, it just will not survive a reload.
+    }
+  }
+
+  function toggleNotifications() {
+    setNotifOpen((open) => {
+      if (!open) persistSeenCount(alertCount);
+      return !open;
+    });
+  }
+
   function handleSelectNotification(d) {
     setNotifOpen(false);
     navigate(`/engine/${d.engine_id}`);
   }
+
+  const unreadCount = Math.max(0, alertCount - lastSeenCount);
 
   return (
     <div
