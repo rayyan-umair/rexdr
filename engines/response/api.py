@@ -18,6 +18,7 @@ GitHub  : github.com/rayyan-umair/rexdr
 # -- Standard Library --------------------------------------------------------
 import asyncio
 import logging
+import httpx
 from datetime import datetime
 from typing import Any
 
@@ -93,6 +94,31 @@ class ConnectionManager:
         for connection in disconnected:
             self.disconnect(connection)
 
+    async def _resolve_chain(chain_id: str | None, case_id: str) -> bool:
+        """
+        Tell SIEM the chain behind a closed case is no longer active. Also
+        passes the case id so SIEM can backfill case_file_id on chains that
+        predate the back-reference. Returns False rather than raising - the
+        case is already closed either way.
+        """
+        if not chain_id:
+            return False
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"{settings.siem_engine_url}/chains/{chain_id}/resolve",
+                    json={"case_file_id": case_id},
+            )
+            response.raise_for_status()
+            logger.info("Chain resolved via case closure - chain_id=%s", chain_id)
+            return True
+        except Exception as e:
+            logger.warning(
+            "Failed to resolve chain after case closure - chain_id=%s error=%s",
+            chain_id, str(e),
+        )
+        return False
 
 def create_app(db: ResponseDatabase, playbook_engine: PlaybookEngine) -> FastAPI:
     app = FastAPI(
@@ -150,10 +176,30 @@ def create_app(db: ResponseDatabase, playbook_engine: PlaybookEngine) -> FastAPI
 
     @app.post("/cases/{case_id}/close", tags=["Cases"])
     async def close_case(case_id: str, body: CloseCaseRequest) -> dict:
+        """
+        Close a case with a resolution note, then resolve its linked chain
+        in SIEM. Chain resolution is best-effort - the case closure has
+        already committed and is the source of truth, so a SIEM outage
+        must not fail the request or leave the case half-closed.
+        """
+        cases = db.get_recent_cases(limit=1000)
+        case = next((c for c in cases if c.get("case_id") == case_id), None)
+
+        if case is None:
+            raise HTTPException(status_code=404, detail=f"Case {case_id} not found.")
+
         closed = db.close_case(case_id, body.resolution)
         if not closed:
             raise HTTPException(status_code=404, detail=f"Case {case_id} not found.")
-        return {"case_id": case_id, "is_closed": True, "resolution": body.resolution}
+
+        chain_resolved = await _resolve_chain(case.get("chain_id"), case_id)
+
+        return {
+            "case_id":        case_id,
+            "is_closed":      True,
+            "resolution":     body.resolution,
+            "chain_resolved": chain_resolved,
+        }
 
     @app.get("/actions", response_model=ActionsResponse, tags=["Actions"])
     async def get_actions(limit: int = 100) -> ActionsResponse:

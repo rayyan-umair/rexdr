@@ -174,6 +174,37 @@ class SiemDatabase(BaseDatabase):
             WHERE chain_id = ?
         """, [case_file_id, datetime.now(timezone.utc), chain_id])
 
+    def resolve_chain(self, chain_id: str, case_file_id: str | None = None) -> bool:
+        """
+        Mark a chain as no longer active after an analyst closed its case
+        file. Deliberately does not set is_contained - that flag means
+        automated containment actually ran, which closing a case for
+        manual investigation does not imply. Backfills case_file_id when
+        it is still null so chains created before the back-reference
+        existed get linked on resolution, but never overwrites a value
+        that is already set.
+        """
+        existing = self.conn.execute(
+            "SELECT case_file_id FROM attack_chains WHERE chain_id = ?",
+            [chain_id]
+        ).fetchone()
+
+        if not existing:
+            return False
+
+        resolved_case_id = existing[0] or case_file_id
+
+        self.conn.execute("""
+            UPDATE attack_chains SET
+                is_active    = FALSE,
+                case_file_id = ?,
+                updated_at   = ?
+            WHERE chain_id = ?
+        """, [resolved_case_id, datetime.now(timezone.utc), chain_id])
+
+        logger.info("Chain resolved - chain_id=%s case_file_id=%s", chain_id, resolved_case_id)
+        return True
+
     def link_case_file(self, chain_id: str, case_file_id: str) -> bool:
         """Attach a case file reference to a chain without altering its
         active/contained status. Returns False if the chain doesn't exist."""
