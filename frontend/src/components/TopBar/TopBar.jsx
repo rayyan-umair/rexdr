@@ -230,7 +230,7 @@ export default function TopBar({ onOpenSearch, onToggleAI, alertCount = 0, aiEna
 
         <div ref={bellRef} style={{ position: "relative" }}>
           <button
-            onClick={() => setNotifOpen((v) => !v)}
+            onClick= {toggleNotifications}
             onMouseEnter={() => setBellHovered(true)}
             onMouseLeave={() => setBellHovered(false)}
             title="Critical alerts"
@@ -303,7 +303,7 @@ export default function TopBar({ onOpenSearch, onToggleAI, alertCount = 0, aiEna
                 CRITICAL ALERTS {notifTotal > 0 && `(${notifTotal})`}
               </div>
 
-              <div style={{ overflowY: "auto" }}>
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
                 {notifLoading ? (
                   <div style={{ padding: "24px", fontSize: "13px", color: colors.textTertiary, textAlign: "center" }}>
                     Loading...
