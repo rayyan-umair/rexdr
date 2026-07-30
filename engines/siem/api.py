@@ -64,6 +64,12 @@ class ChainsResponse(BaseModel):
 class LinkCaseFileRequest(BaseModel):
     case_file_id: str | None = None
 
+class LinkCaseFileRequest(BaseModel):
+    case_file_id: str
+
+class ResolveChainRequest(BaseModel):
+    case_file_id: str | None = None
+
 class ReplayResponse(BaseModel):
     events_processed: int
     total_matches:    int
