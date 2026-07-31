@@ -55,3 +55,7 @@ Thumbs.db
 # -- Wheels copied into engine build contexts by prepare_build scripts ----------
 engines/*/rexdr_core-*.whl
 engines/*/*/rexdr_core-*.whl
+
+# Python bytecode
+__pycache__/
+*.py[cod]
