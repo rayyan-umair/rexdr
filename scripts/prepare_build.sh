@@ -15,12 +15,13 @@
 
 set -euo pipefail
 
-WHEEL_SOURCE="dist/rexdr_core-1.0.0-py3-none-any.whl"
-
-if [ ! -f "$WHEEL_SOURCE" ]; then
-    echo -e "\033[31mERROR: Wheel not found at $WHEEL_SOURCE\033[0m"
-    echo -e "\033[33mBuild it first: cd core-shared && python -m build\033[0m"
-    exit 1
+if [ -f "$WHEEL_SOURCE" ]; then
+    NEWER=$(find core-shared/rexdr_core -name "*.py" -newer "$WHEEL_SOURCE" | head -1)
+    if [ -n "$NEWER" ]; then
+        echo -e "\033[31mERROR: wheel is older than source ($NEWER).\033[0m"
+        echo -e "\033[33mRebuild it: cd core-shared && python3 -m build --wheel\033[0m"
+        exit 1
+    fi
 fi
 
 ENGINES=(
