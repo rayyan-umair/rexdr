@@ -444,6 +444,7 @@ services:
       ASSET_DISCOVERY_ENGINE_URL: "http://host.docker.internal:8006"
       NVD_API_KEY: "${NVD_API_KEY:-}"
       CVE_SYNC_INTERVAL_HOURS: "${CVE_SYNC_INTERVAL_HOURS:-24}"
+      CVE_SYNC_START_HOUR: "${CVE_SYNC_LOOKBACK_DAYS:-8}"
       DB_RETENTION_DAYS: "${DB_RETENTION_DAYS:-30}"
     ports:
       - "8007:8007"
