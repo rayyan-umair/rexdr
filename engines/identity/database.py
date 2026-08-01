@@ -309,6 +309,8 @@ class IdentityDatabase(BaseDatabase):
             return None
 
         result = dict(zip(SNAPSHOT_COLUMNS, row))
+        if isinstance(result["members"], str):
+            result["members"] = json.loads(result["members"])
         return result
 
     def get_previous_snapshot(self, group_name: str) -> dict | None:
@@ -324,6 +326,8 @@ class IdentityDatabase(BaseDatabase):
             return None
 
         result = dict(zip(SNAPSHOT_COLUMNS, rows[1]))
+        if isinstance(result["members"], str):
+            result["members"] = json.loads(result["members"])
         return result
 
     # -------------------------------------------------------------------------

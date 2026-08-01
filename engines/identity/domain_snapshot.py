@@ -28,6 +28,7 @@ GitHub  : github.com/rayyan-umair/rexdr
 import logging
 import uuid
 from dataclasses import dataclass
+import json
 
 # -- Third Party -------------------------------------------------------------
 from ldap3 import Server, Connection, ALL, SUBTREE
@@ -308,7 +309,14 @@ class DomainSnapshotEngine:
         if previous is None:
             return None
 
-        previous_members = set(previous["members"])
+        # Guard against members arriving as a raw JSON string. set() on a
+        # string iterates it character by character, which silently produced
+        # phantom "removed members" like '[', '"', 'A' and fired AD-002 on
+        # every snapshot cycle.
+        previous_raw = previous["members"]
+        if isinstance(previous_raw, str):
+            previous_raw = json.loads(previous_raw)
+        previous_members = set(previous_raw)
         current_set = set(current_members)
 
         added   = list(current_set - previous_members)
