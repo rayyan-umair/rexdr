@@ -6,7 +6,7 @@
 # Date    : 2026-06-23
 # =============================================================================
 
-FROM python:3.11-slim
+FROM rexdr-base:1.0.0
 
 LABEL maintainer="Rayyan Umair <rayyanxumair@gmail.com>"
 LABEL description="REXDR Entity Store Service - shared unified entity registry"
@@ -17,9 +17,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
-COPY rexdr_core-1.0.0-py3-none-any.whl /tmp/
-RUN pip install --no-cache-dir /tmp/rexdr_core-1.0.0-py3-none-any.whl
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

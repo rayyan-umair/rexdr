@@ -27,7 +27,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
 # -----------------------------------------------------------------------------
 # Stage 2 - Python intelligence layer
 # -----------------------------------------------------------------------------
-FROM python:3.11-slim
+FROM rexdr-base:1.0.0
 
 # Metadata
 LABEL maintainer="Rayyan Umair <rayyanxumair@gmail.com>"
@@ -40,10 +40,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Install rexdr_core wheel first - it is the foundation
-COPY rexdr_core-1.0.0-py3-none-any.whl /tmp/
-RUN pip install --no-cache-dir /tmp/rexdr_core-1.0.0-py3-none-any.whl
 
 # Install engine dependencies
 COPY requirements.txt .
