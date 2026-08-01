@@ -31,7 +31,7 @@ from pydantic import BaseModel
 
 # -- Internal ----------------------------------------------------------------
 from rexdr_core.identity import METADATA, VERSION, EngineID
-from rexdr_core.schemas import AlertSeverity, DetectionetectionStatus
+from rexdr_core.schemas import AlertSeverity, DetectionStatus
 from windows_event.config import settings
 from windows_event.database import WindowsEventDatabase
 
