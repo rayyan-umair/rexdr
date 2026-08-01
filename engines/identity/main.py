@@ -4,6 +4,13 @@ main.py - Engine entry point and intelligence pipeline
 
 Author  : Rayyan Umair
 Date    : 2026-06-18
+Updated : 2026-08-01 - normalize_ad_event() now canonicalises the username
+          before the payload is built. Detections derive entity_id from this
+          field and SIEM correlates chains on detection.entity_id, so
+          normalizing any later would leave detections and entity
+          observations keyed differently for the same account. Also threads
+          the changed group name into process_detection_only so AD-002
+          actually records known_groups.
 Purpose : Entry point for the Active Directory Intelligence engine.
           Runs three concurrent background tasks - the event
           normalization pipeline (reads raw events written by the Go
@@ -42,7 +49,7 @@ from identity.config import settings
 from identity.database import IdentityDatabase
 from identity.detections import IdentityDetections
 from identity.domain_snapshot import DomainSnapshotEngine
-from identity.entity import IdentityEntityManager
+from identity.entity import IdentityEntityManager, normalize_username
 
 # ============================================================================
 
@@ -92,14 +99,21 @@ def normalize_ad_event(raw: dict) -> NormalizedTelemetryPayload | None:
 
     event_type, description, severity = mapping
 
+    # Canonicalise here rather than downstream - detections derive entity_id
+    # from this field, and SIEM correlates chains on detection.entity_id, so
+    # normalizing any later would leave detections and entity observations
+    # keyed differently for the same account. The description keeps the raw
+    # value so nothing is lost from the event record itself.
+    raw_username = raw.get("username") or raw.get("target_username")
+
     return NormalizedTelemetryPayload(
         engine_id         = EngineID.IDENTITY,
         timestamp         = raw.get("time_created", datetime.now(timezone.utc)),
         destination_host  = raw.get("computer") or raw.get("target_host"),
-        username          = raw.get("username") or raw.get("target_username"),
+        username          = normalize_username(raw_username),
         event_type        = event_type,
         event_code        = str(event_id),
-        description       = f"{description} | user={raw.get('username', 'unknown')}",
+        description       = f"{description} | user={raw_username or 'unknown'}",
         raw_data          = raw,
         severity          = severity,
     )

@@ -4,6 +4,14 @@ database.py - DuckDB database layer for the SIEM engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-23
+Updated : 2026-08-01 - Chains now carry detection_codes. Playbooks match on
+          detection codes, but the chain record only ever stored
+          detection_ids (UUIDs), so PlaybookEngine._extract_detection_codes
+          always came back empty and no playbook could ever match on a code.
+          Reads switched from SELECT * to explicit columns at the same time:
+          ALTER TABLE appends a new column at the end while CREATE TABLE
+          puts it mid-list, so a positional column list silently misaligns
+          on a migrated database.
 Purpose : Extends BaseDatabase with the SIEM engine schema. Owns the
           siem.duckdb file - storing Sigma matches and attack chains.
           Cross-engine correlation data now comes from engine_client.py
@@ -33,12 +41,16 @@ from rexdr_core.schemas import AttackChain, ChainSeverity, Detection
 
 logger = logging.getLogger(__name__)
 
+# Named explicitly so reads never depend on physical column order. This list
+# is the single source of truth for both the SELECT and the dict keys - they
+# cannot drift apart.
 CHAIN_COLUMNS = [
-                "chain_id", "created_at", "updated_at", "severity", "title",
-                "narrative", "entity_id", "contributing_engines",
-                "detection_ids", "detection_codes", "mitre_tactics", "mitre_techniques",
-                "is_active", "is_contained", "case_file_id",
-            ]
+    "chain_id", "created_at", "updated_at", "severity", "title",
+    "narrative", "entity_id", "contributing_engines",
+    "detection_ids", "detection_codes", "mitre_tactics", "mitre_techniques",
+    "is_active", "is_contained", "case_file_id",
+]
+
 
 class SiemDatabase(BaseDatabase):
     """
@@ -48,11 +60,10 @@ class SiemDatabase(BaseDatabase):
     any other engine's database file. Cross-engine data is fetched via
     engine_client.py over HTTP instead.
     """
-    
+
     def __init__(self, data_dir) -> None:
         super().__init__(EngineID.SIEM, data_dir)
 
-    
     # -------------------------------------------------------------------------
     # Schema
     # -------------------------------------------------------------------------
@@ -97,8 +108,9 @@ class SiemDatabase(BaseDatabase):
             )
         """)
 
-        # Migration - chains predating playbook support carry no detection
-        # codes, which is what playbooks match on.
+        # Migration - chains created before playbook support carry no detection
+        # codes, which is the field playbooks actually match on. Idempotent, so
+        # this is safe to run on every startup.
         self.conn.execute(
             "ALTER TABLE attack_chains ADD COLUMN IF NOT EXISTS detection_codes JSON DEFAULT '[]'"
         )
@@ -141,8 +153,8 @@ class SiemDatabase(BaseDatabase):
             INSERT INTO attack_chains (
                 chain_id, created_at, updated_at, severity, title,
                 narrative, entity_id, contributing_engines,
-                detection_ids, detection_codes, mitre_tactics, mitre_techniques,
-                is_active, is_contained, case_file_id
+                detection_ids, detection_codes, mitre_tactics,
+                mitre_techniques, is_active, is_contained, case_file_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             str(chain.chain_id),
@@ -189,6 +201,26 @@ class SiemDatabase(BaseDatabase):
             WHERE chain_id = ?
         """, [case_file_id, datetime.now(timezone.utc), chain_id])
 
+    def link_case_file(self, chain_id: str, case_file_id: str) -> bool:
+        """Attach a case file reference to a chain without altering its
+        active/contained status. Returns False if the chain doesn't exist."""
+        existing = self.conn.execute(
+            "SELECT COUNT(*) FROM attack_chains WHERE chain_id = ?",
+            [chain_id]
+        ).fetchone()
+
+        if not existing or existing[0] == 0:
+            return False
+
+        self.conn.execute("""
+            UPDATE attack_chains SET
+                case_file_id = ?,
+                updated_at   = ?
+            WHERE chain_id = ?
+        """, [case_file_id, datetime.now(timezone.utc), chain_id])
+
+        return True
+
     def resolve_chain(self, chain_id: str, case_file_id: str | None = None) -> bool:
         """
         Mark a chain as no longer active after an analyst closed its case
@@ -220,26 +252,6 @@ class SiemDatabase(BaseDatabase):
         logger.info("Chain resolved - chain_id=%s case_file_id=%s", chain_id, resolved_case_id)
         return True
 
-    def link_case_file(self, chain_id: str, case_file_id: str) -> bool:
-        """Attach a case file reference to a chain without altering its
-        active/contained status. Returns False if the chain doesn't exist."""
-        existing = self.conn.execute(
-            "SELECT COUNT(*) FROM attack_chains WHERE chain_id = ?",
-            [chain_id]
-        ).fetchone()
-
-        if not existing or existing[0] == 0:
-            return False
-
-        self.conn.execute("""
-            UPDATE attack_chains SET
-                case_file_id = ?,
-                updated_at   = ?
-            WHERE chain_id = ?
-        """, [case_file_id, datetime.now(timezone.utc), chain_id])
-
-        return True
-
     # -------------------------------------------------------------------------
     # Read operations
     # -------------------------------------------------------------------------
@@ -251,6 +263,7 @@ class SiemDatabase(BaseDatabase):
             ORDER BY created_at DESC
             LIMIT ?
         """, [limit]).fetchall()
+
         return [dict(zip(CHAIN_COLUMNS, row)) for row in rows]
 
     def get_active_chains(self) -> list[dict]:
@@ -260,6 +273,7 @@ class SiemDatabase(BaseDatabase):
             WHERE is_active = TRUE
             ORDER BY severity DESC, created_at DESC
         """).fetchall()
+
         return [dict(zip(CHAIN_COLUMNS, row)) for row in rows]
 
     def chain_exists_for_entity(self, entity_id: str) -> bool:

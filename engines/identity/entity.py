@@ -8,6 +8,12 @@ Updated : 2026-07-14 - process(), process_detection_only(), and their
           internal helpers are now async, and all entity_store calls
           are awaited, matching EntityStoreClient's conversion to
           httpx.AsyncClient.
+Updated : 2026-08-01 - Added normalize_username(). The same account was
+          being tracked as several separate entities depending on which
+          event reported it, and machine accounts were slipping past the
+          trailing-$ filter because the $ sits before the realm suffix.
+          Every one of those was a candidate entity for cross-engine
+          correlation, able to form its own chain and case file.
 Purpose : Handles all entity observation updates for the Identity
           engine. Translates detection results and event/diff data
           into entity store updates - the bridge between the detection
@@ -34,6 +40,73 @@ from identity.database import IdentityDatabase
 
 logger = logging.getLogger(__name__)
 
+# Built-in Windows accounts that appear constantly in the Security log but
+# never represent a real identity worth tracking, correlating on, or
+# containing. Each was previously stored as a distinct entity and was
+# eligible to form its own cross-engine attack chain.
+BUILTIN_ACCOUNTS = {
+    "system",
+    "local system",
+    "local service",
+    "network service",
+    "anonymous logon",
+    "iusr",
+    "guest",
+}
+
+# Per-session pseudo-accounts Windows creates and discards constantly.
+BUILTIN_PREFIXES = ("umfd-", "dwm-", "font driver host")
+
+
+def normalize_username(raw: str | None) -> str | None:
+    """
+    Reduce a Windows username to a single canonical entity id.
+
+    The same account is reported several different ways depending on which
+    event produced it - 'Administrator', 'administrator', and
+    'Administrator@REXDRLAB.LOCAL' are one identity but were tracked as
+    three separate entities, each able to form its own attack chain and
+    generate its own case file.
+
+    Returns None for anything that should not be tracked at all: machine
+    accounts and built-in service accounts.
+    """
+    if not raw:
+        return None
+
+    name = raw.strip()
+    if not name:
+        return None
+
+    # UPN realm suffix: Administrator@REXDRLAB.LOCAL -> Administrator
+    if "@" in name:
+        name = name.split("@", 1)[0]
+
+    # NetBIOS prefix: REXDRLAB\Administrator -> Administrator
+    if "\\" in name:
+        name = name.rsplit("\\", 1)[1]
+
+    name = name.strip()
+    if not name:
+        return None
+
+    # Machine accounts carry a trailing $ - but it sits before any realm
+    # suffix, so this has to run after the suffix is stripped. Checking the
+    # raw string misses LAB-DC01$@REXDRLAB.LOCAL entirely, which is exactly
+    # how domain controllers ended up tracked as user entities.
+    if name.endswith("$"):
+        return None
+
+    lowered = name.lower()
+
+    if lowered in BUILTIN_ACCOUNTS:
+        return None
+
+    if any(lowered.startswith(prefix) for prefix in BUILTIN_PREFIXES):
+        return None
+
+    return lowered
+
 
 class IdentityEntityManager:
     """
@@ -52,8 +125,8 @@ class IdentityEntityManager:
         detections: list[Detection],
     ) -> None:
         """Process an event and its detections into entity observations."""
-        username = payload.username
-        if not username or username.endswith("$"):
+        username = normalize_username(payload.username)
+        if username is None:
             return
 
         try:
@@ -76,8 +149,12 @@ class IdentityEntityManager:
         is the group this entity's membership changed in, so it gets
         recorded in the entity's known_groups history.
         """
+        entity_id = normalize_username(detection.entity_id)
+        if entity_id is None:
+            return
+
         try:
-            await self._apply_detection(detection.entity_id, [detection], new_group=new_group)
+            await self._apply_detection(entity_id, [detection], new_group=new_group)
         except Exception as e:
             logger.error(
                 "Failed to update entity from standalone detection - entity=%s error=%s",
@@ -94,7 +171,7 @@ class IdentityEntityManager:
         payload: NormalizedTelemetryPayload,
         detections: list[Detection],
     ) -> None:
-        entity_detections = [d for d in detections if d.entity_id == entity_id]
+        entity_detections = [d for d in detections if d.entity_id == payload.username]
         new_auth_host = (
             payload.destination_host
             if payload.event_type in ("successful_logon", "network_logon")
