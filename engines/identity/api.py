@@ -68,6 +68,12 @@ class EntitiesResponse(BaseModel):
     entities:  list[dict[str, Any]]
     timestamp: datetime
 
+class ComputersResponse(BaseModel):
+    engine:    str
+    count:     int
+    computers: list[dict[str, Any]]
+    timestamp: datetime
+
 class StatsResponse(BaseModel):
     engine:    str
     stats:     dict[str, Any]
@@ -216,6 +222,20 @@ def create_app(db: IdentityDatabase) -> FastAPI:
             engine    = EngineID.IDENTITY.value,
             count     = len(entities),
             entities  = entities,
+            timestamp = datetime.utcnow(),
+        )
+
+    @app.get("/computers", response_model=ComputersResponse, tags=["Entities"])
+    async def get_computers(limit: int = 500) -> ComputersResponse:
+        """Get every computer object joined to the domain."""
+        if limit > 2000:
+            raise HTTPException(status_code=400, detail="Limit cannot exceed 2000.")
+
+        computers = db.get_computers(limit=limit)
+        return ComputersResponse(
+            engine    = EngineID.IDENTITY.value,
+            count     = len(computers),
+            computers = computers,
             timestamp = datetime.utcnow(),
         )
 

@@ -217,6 +217,7 @@ async def _snapshot_cycle() -> None:
         return
 
     for target_ip in targets:
+        snapshot_engine.enumerate_computers(target_ip)
         diffs = snapshot_engine.take_snapshot(target_ip)
 
         for diff in diffs:

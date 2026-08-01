@@ -26,7 +26,7 @@
 
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, Server, GitBranch, Briefcase, Users } from "lucide-react";
+import { AlertTriangle, Server, GitBranch, Briefcase, Users, Monitor } from "lucide-react";
 import { colors, ENGINES } from "../design/tokens";
 import { usePolling } from "../hooks/usePolling";
 import { useLiveStream } from "../hooks/useLiveStream";
@@ -116,6 +116,12 @@ export default function EngineView({ onAskAI }) {
     [engineId]
   );
 
+  const { data: computersData } = usePolling(
+    () => (isIdentity ? client.computers(500) : Promise.resolve({ computers: [] })),
+    30000,
+    [engineId]
+  );
+
   const { data: chainsData } = usePolling(
     () => (isSiem ? client.chains(50, true) : Promise.resolve({ chains: [] })),
     15000,
@@ -138,6 +144,7 @@ export default function EngineView({ onAskAI }) {
   const chains = chainsData?.chains || [];
   const cases = casesData?.cases || [];
   const entities = entitiesData?.entities || [];
+  const computers = computersData?.computers || [];
 
   return (
     <div style={{ display: "flex", height: "100%" }}>
@@ -169,6 +176,8 @@ export default function EngineView({ onAskAI }) {
         </div>
 
         {isAssetDiscovery && <AssetsPanel assets={assets} />}
+
+        {isIdentity && <ComputersPanel computers={computers} />}
 
         {isIdentity && <EntitiesPanel entities={entities} />}
 
@@ -606,6 +615,131 @@ function EntitiesPanel({ entities }) {
                     </td>
                     <td style={{ padding: "10px 12px", color: colors.textTertiary, whiteSpace: "nowrap" }}>
                       {e.last_seen && formatDistanceToNow(new Date(e.last_seen), { addSuffix: true })}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Identity - domain-joined computer objects
+// -----------------------------------------------------------------------------
+
+function ComputersPanel({ computers }) {
+  return (
+    <div style={{ padding: "0 20px 20px" }}>
+      <div
+        style={{
+          fontSize: "12px",
+          fontWeight: 700,
+          color: colors.textTertiary,
+          letterSpacing: "0.05em",
+          marginBottom: "12px",
+        }}
+      >
+        DOMAIN COMPUTERS
+      </div>
+
+      {computers.length === 0 ? (
+        <EmptyState
+          icon={Monitor}
+          title="No domain computers enumerated yet"
+          description="Domain-joined machines appear here after the next directory sync."
+        />
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+                {["Computer", "DNS Name", "Container", "Operating System", "Role", "Flags", "Last Logon"].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      textAlign: "left",
+                      padding: "8px 12px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      color: colors.textTertiary,
+                      letterSpacing: "0.03em",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {computers.map((c) => {
+                const flags = safeParse(c.uac_flags, []);
+                // Unconstrained delegation is expected on a domain controller
+                // and a credential theft vector anywhere else.
+                const riskyDelegation = c.is_trusted_for_delegation && !c.is_domain_controller;
+
+                return (
+                  <tr
+                    key={c.computer_name}
+                    style={{ borderBottom: `1px solid ${colors.border}` }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = colors.surface)}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <td style={{ padding: "10px 12px", fontFamily: "'JetBrains Mono', monospace", color: colors.textPrimary, whiteSpace: "nowrap" }}>
+                      {c.computer_name}
+                      {!c.is_enabled && (
+                        <span style={{ marginLeft: "6px", fontSize: "10px", fontWeight: 700, color: colors.textTertiary }}>
+                          DISABLED
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: colors.textSecondary, fontSize: "12px", whiteSpace: "nowrap" }}>
+                      {c.dns_hostname || <span style={{ color: colors.textTertiary }}>—</span>}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: colors.textSecondary, whiteSpace: "nowrap" }}>
+                      {c.container_path || <span style={{ color: colors.textTertiary }}>—</span>}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: colors.textSecondary }}>
+                      {c.operating_system || <span style={{ color: colors.textTertiary }}>—</span>}
+                      {c.operating_system_version && (
+                        <span style={{ color: colors.textTertiary, fontSize: "11px" }}> {c.operating_system_version}</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 700, color: c.is_domain_controller ? colors.accent : colors.textTertiary }}>
+                        {c.is_domain_controller ? "DOMAIN CONTROLLER" : "MEMBER"}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 12px" }}>
+                      {riskyDelegation ? (
+                        <span
+                          title="Unconstrained delegation on a non-DC allows this host to impersonate any user that authenticates to it."
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 700,
+                            color: colors.critical,
+                            border: `1px solid ${colors.critical}55`,
+                            borderRadius: "4px",
+                            padding: "2px 6px",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          UNCONSTRAINED DELEGATION
+                        </span>
+                      ) : flags.length > 0 ? (
+                        <span style={{ fontSize: "11px", color: colors.textTertiary }} title={flags.join(", ")}>
+                          {flags.length} flag{flags.length !== 1 ? "s" : ""}
+                        </span>
+                      ) : (
+                        <span style={{ color: colors.textTertiary }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: colors.textTertiary, whiteSpace: "nowrap" }}>
+                      {c.last_logon ? formatDistanceToNow(new Date(c.last_logon), { addSuffix: true }) : "—"}
                     </td>
                   </tr>
                 );

@@ -86,6 +86,7 @@ export const identity = {
     request(`/identity/detections?limit=${limit}${severity ? `&severity=${severity}` : ""}`),
   stats:      () => request("/identity/stats"),
   entities:   (limit = 200) => request(`/identity/entities?limit=${limit}`),
+  computers:  (limit = 500) => request(`/identity/computers?limit=${limit}`),
 };
 
 // -- Incident Response Orchestration -------------------------------------------

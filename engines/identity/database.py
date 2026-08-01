@@ -40,6 +40,14 @@ ENTITY_COLUMNS = [
     "latest_detection", "known_groups", "known_auth_hosts", "updated_at",
 ]
 
+COMPUTER_COLUMNS = [
+    "computer_name", "dns_hostname", "distinguished_name", "container_path",
+    "operating_system", "operating_system_version", "user_account_control",
+    "is_enabled", "is_domain_controller", "is_trusted_for_delegation",
+    "uac_flags", "service_principal_names", "when_created", "last_logon",
+    "first_seen", "last_synced",
+]
+
 class IdentityDatabase(BaseDatabase):
     """
     DuckDB database layer for the Active Directory Intelligence engine.
@@ -108,6 +116,30 @@ class IdentityDatabase(BaseDatabase):
                 group_name    VARCHAR NOT NULL,
                 members       JSON DEFAULT '[]',
                 member_count  INTEGER DEFAULT 0
+            )
+        """)
+
+        # Domain-joined computer objects. The authoritative list of managed
+        # machines - what the directory says should be on the network, as
+        # opposed to what network discovery actually finds there.
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS domain_computers (
+                computer_name              VARCHAR PRIMARY KEY,
+                dns_hostname               VARCHAR,
+                distinguished_name         VARCHAR NOT NULL,
+                container_path             VARCHAR,
+                operating_system           VARCHAR,
+                operating_system_version   VARCHAR,
+                user_account_control       INTEGER,
+                is_enabled                 BOOLEAN DEFAULT TRUE,
+                is_domain_controller       BOOLEAN DEFAULT FALSE,
+                is_trusted_for_delegation  BOOLEAN DEFAULT FALSE,
+                uac_flags                  JSON DEFAULT '[]',
+                service_principal_names    JSON DEFAULT '[]',
+                when_created               TIMESTAMP,
+                last_logon                 TIMESTAMP,
+                first_seen                 TIMESTAMP NOT NULL,
+                last_synced                TIMESTAMP NOT NULL
             )
         """)
 
@@ -393,6 +425,73 @@ class IdentityDatabase(BaseDatabase):
                 now,
             ])
 
+    def upsert_computer(self, computer: dict) -> None:
+        """Insert or refresh a domain computer object from an LDAP sync."""
+        now = datetime.now(timezone.utc)
+        self.conn.execute("""
+            INSERT INTO domain_computers (
+                computer_name, dns_hostname, distinguished_name, container_path,
+                operating_system, operating_system_version, user_account_control,
+                is_enabled, is_domain_controller, is_trusted_for_delegation,
+                uac_flags, service_principal_names, when_created, last_logon,
+                first_seen, last_synced
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (computer_name) DO UPDATE SET
+                dns_hostname              = excluded.dns_hostname,
+                distinguished_name        = excluded.distinguished_name,
+                container_path            = excluded.container_path,
+                operating_system          = excluded.operating_system,
+                operating_system_version  = excluded.operating_system_version,
+                user_account_control      = excluded.user_account_control,
+                is_enabled                = excluded.is_enabled,
+                is_domain_controller      = excluded.is_domain_controller,
+                is_trusted_for_delegation = excluded.is_trusted_for_delegation,
+                uac_flags                 = excluded.uac_flags,
+                service_principal_names   = excluded.service_principal_names,
+                last_logon                = excluded.last_logon,
+                last_synced               = excluded.last_synced
+        """, [
+            computer.get("computer_name"),
+            computer.get("dns_hostname"),
+            computer.get("distinguished_name"),
+            computer.get("container_path"),
+            computer.get("operating_system"),
+            computer.get("operating_system_version"),
+            computer.get("user_account_control"),
+            computer.get("is_enabled"),
+            computer.get("is_domain_controller"),
+            computer.get("is_trusted_for_delegation"),
+            json.dumps(computer.get("uac_flags", [])),
+            json.dumps(computer.get("service_principal_names", [])),
+            computer.get("when_created"),
+            computer.get("last_logon"),
+            now,
+            now,
+        ])
+
+    def get_computers(self, limit: int = 500) -> list[dict]:
+        """Get all known domain computers, domain controllers first."""
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(COMPUTER_COLUMNS)} FROM domain_computers
+            ORDER BY is_domain_controller DESC, computer_name ASC
+            LIMIT ?
+        """, [limit]).fetchall()
+
+        results = [dict(zip(COMPUTER_COLUMNS, row)) for row in rows]
+
+        for computer in results:
+            for field in ("uac_flags", "service_principal_names"):
+                value = computer.get(field)
+                if isinstance(value, str):
+                    try:
+                        computer[field] = json.loads(value)
+                    except (ValueError, TypeError):
+                        computer[field] = []
+                elif value is None:
+                    computer[field] = []
+
+        return results
+
     # -------------------------------------------------------------------------
     # Read operations
     # -------------------------------------------------------------------------
@@ -470,10 +569,12 @@ class IdentityDatabase(BaseDatabase):
             "SELECT COUNT(*) FROM detections WHERE status = 'open'"
         ).fetchone()[0]
         total_snapshots = self.conn.execute("SELECT COUNT(*) FROM domain_snapshots").fetchone()[0]
+        total_computers = self.conn.execute("SELECT COUNT(*) FROM domain_computers").fetchone()[0]
 
         return {
             "total_events":      total_events,
             "total_detections":  total_detections,
             "open_detections":   open_detections,
             "total_snapshots":   total_snapshots,
+            "total_computers":   total_computers,
         }
