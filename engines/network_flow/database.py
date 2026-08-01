@@ -8,6 +8,11 @@ Updated : 2026-07-03 - Fixed DuckDB parameter binding inside INTERVAL
           literals (INTERVAL ? SECONDS is invalid syntax; DuckDB
           requires INTERVAL '1 second' * ? instead). Added
           critical_detections count to get_stats().
+Updated : 2026-08-01 - Reads name their columns explicitly instead of using
+          SELECT * with a positional list. ALTER TABLE appends a new column
+          at the end while CREATE TABLE places it mid-list, so a positional
+          list silently misaligns on a migrated database - every value shifts
+          one field over and the failure surfaces somewhere unrelated.
 Purpose : Extends BaseDatabase with the Network Flow engine schema.
           Owns the network_flow.duckdb file. Defines all tables for
           raw packets, flow records, detections, and entity observations.
@@ -39,6 +44,25 @@ from rexdr_core.schemas import (
 # ============================================================================
 
 logger = logging.getLogger(__name__)
+
+# Named explicitly so reads never depend on physical column order. These lists
+# are the single source of truth for both the SELECT and the resulting dict
+# keys, so the two cannot drift apart.
+FLOW_COLUMNS = [
+    "flow_id", "src_ip", "dst_ip", "src_port", "dst_port",
+    "protocol", "start_time", "end_time", "packet_count",
+    "bytes_sent", "bytes_received", "flags",
+    "zone_source", "zone_destination", "is_cross_zone",
+    "is_external", "threat_intel_match", "matched_indicator",
+    "created_at",
+]
+
+DETECTION_COLUMNS = [
+    "detection_id", "detection_code", "engine_id", "timestamp",
+    "severity", "title", "description", "entity_id", "entity_type",
+    "evidence", "mitre_tactic", "mitre_technique", "status",
+    "risk_contribution", "created_at",
+]
 
 
 class NetworkFlowDatabase(BaseDatabase):
@@ -370,21 +394,13 @@ class NetworkFlowDatabase(BaseDatabase):
 
     def get_recent_flows(self, limit: int = 100) -> list[dict]:
         """Get recent flow records."""
-        rows = self.conn.execute("""
-            SELECT * FROM flow_records
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(FLOW_COLUMNS)} FROM flow_records
             ORDER BY start_time DESC
             LIMIT ?
         """, [limit]).fetchall()
 
-        columns = [
-            "flow_id", "src_ip", "dst_ip", "src_port", "dst_port",
-            "protocol", "start_time", "end_time", "packet_count",
-            "bytes_sent", "bytes_received", "flags",
-            "zone_source", "zone_destination", "is_cross_zone",
-            "is_external", "threat_intel_match", "matched_indicator",
-            "created_at"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(FLOW_COLUMNS, row)) for row in rows]
 
     def get_port_scan_count(
         self,
@@ -461,7 +477,7 @@ class NetworkFlowDatabase(BaseDatabase):
         severity: AlertSeverity | None = None,
     ) -> list[dict]:
         """Get recent detections, optionally filtered by severity."""
-        query  = "SELECT * FROM detections"
+        query  = f"SELECT {', '.join(DETECTION_COLUMNS)} FROM detections"
         params: list = []
 
         if severity:
@@ -472,19 +488,13 @@ class NetworkFlowDatabase(BaseDatabase):
         params.append(limit)
 
         rows = self.conn.execute(query, params).fetchall()
-        columns = [
-            "detection_id", "detection_code", "engine_id", "timestamp",
-            "severity", "title", "description", "entity_id", "entity_type",
-            "evidence", "mitre_tactic", "mitre_technique", "status",
-            "risk_contribution", "created_at"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
-    
+        return [dict(zip(DETECTION_COLUMNS, row)) for row in rows]
+
     def has_recent_beacon_detection(
-    self,
-    src_ip: str,
-    dst_ip: str,
-    window_minutes: int,
+        self,
+        src_ip: str,
+        dst_ip: str,
+        window_minutes: int,
     ) -> bool:
         """
         Check whether an open STRIKE-002 detection already exists for this

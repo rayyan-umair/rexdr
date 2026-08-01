@@ -4,6 +4,11 @@ database.py - DuckDB database layer for the Response engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-18
+Updated : 2026-08-01 - Reads name their columns explicitly instead of using
+          SELECT * with a positional list. ALTER TABLE appends a new column
+          at the end while CREATE TABLE places it mid-list, so a positional
+          list silently misaligns on a migrated database - every value shifts
+          one field over and the failure surfaces somewhere unrelated.
 Purpose : Extends BaseDatabase with the Response engine schema. Owns
           the response.duckdb file. Defines tables for response actions,
           case file references, and entity observations. The actual
@@ -30,6 +35,20 @@ from rexdr_core.schemas import CaseFile, ChainSeverity, EntityType
 # ============================================================================
 
 logger = logging.getLogger(__name__)
+
+# Named explicitly so reads never depend on physical column order. These lists
+# are the single source of truth for both the SELECT and the resulting dict
+# keys, so the two cannot drift apart.
+CASE_COLUMNS = [
+    "case_id", "created_at", "chain_id", "entity_id", "severity",
+    "title", "analyst", "actions_taken", "evidence_hashes",
+    "chain_hash", "file_path", "is_closed", "closed_at", "resolution",
+]
+
+ACTION_COLUMNS = [
+    "action_id", "case_id", "chain_id", "entity_id", "action_type",
+    "playbook_id", "status", "details", "executed_at",
+]
 
 
 class ResponseDatabase(BaseDatabase):
@@ -250,32 +269,23 @@ class ResponseDatabase(BaseDatabase):
 
     def get_recent_cases(self, limit: int = 50) -> list[dict]:
         """Get recent case files."""
-        rows = self.conn.execute("""
-            SELECT * FROM case_files
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(CASE_COLUMNS)} FROM case_files
             ORDER BY created_at DESC
             LIMIT ?
         """, [limit]).fetchall()
 
-        columns = [
-            "case_id", "created_at", "chain_id", "entity_id", "severity",
-            "title", "analyst", "actions_taken", "evidence_hashes",
-            "chain_hash", "file_path", "is_closed", "closed_at", "resolution"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(CASE_COLUMNS, row)) for row in rows]
 
     def get_recent_actions(self, limit: int = 100) -> list[dict]:
         """Get recent response actions."""
-        rows = self.conn.execute("""
-            SELECT * FROM response_actions
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(ACTION_COLUMNS)} FROM response_actions
             ORDER BY executed_at DESC
             LIMIT ?
         """, [limit]).fetchall()
 
-        columns = [
-            "action_id", "case_id", "chain_id", "entity_id", "action_type",
-            "playbook_id", "status", "details", "executed_at"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(ACTION_COLUMNS, row)) for row in rows]
 
     def get_stats(self) -> dict:
         """Return engine statistics."""

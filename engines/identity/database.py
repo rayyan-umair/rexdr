@@ -48,6 +48,21 @@ COMPUTER_COLUMNS = [
     "first_seen", "last_synced",
 ]
 
+RAW_EVENT_COLUMNS = [
+    "id", "target_host", "target_ip", "event_id", "time_created",
+    "computer", "username", "target_username", "service_name",
+    "encryption_type", "message", "received_at", "processed",
+]
+
+SNAPSHOT_COLUMNS = ["snapshot_id", "taken_at", "group_name", "members", "member_count"]
+
+DETECTION_COLUMNS = [
+    "detection_id", "detection_code", "engine_id", "timestamp",
+    "severity", "title", "description", "entity_id", "entity_type",
+    "evidence", "mitre_tactic", "mitre_technique", "status",
+    "risk_contribution", "created_at",
+]
+
 class IdentityDatabase(BaseDatabase):
     """
     DuckDB database layer for the Active Directory Intelligence engine.
@@ -219,19 +234,14 @@ class IdentityDatabase(BaseDatabase):
         )
 
     def get_unprocessed_raw_events(self, limit: int = 500) -> list[dict]:
-        rows = self.conn.execute("""
-            SELECT * FROM raw_events
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(RAW_EVENT_COLUMNS)} FROM raw_events
             WHERE processed = FALSE
             ORDER BY time_created ASC
             LIMIT ?
         """, [limit]).fetchall()
 
-        columns = [
-            "id", "target_host", "target_ip", "event_id", "time_created",
-            "computer", "username", "target_username", "service_name",
-            "encryption_type", "message", "received_at", "processed"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(RAW_EVENT_COLUMNS, row)) for row in rows]
 
     # -------------------------------------------------------------------------
     # Normalized event writes
@@ -288,8 +298,8 @@ class IdentityDatabase(BaseDatabase):
 
     def get_latest_snapshot(self, group_name: str) -> dict | None:
         """Get the most recent snapshot for a group, or None if none exists."""
-        row = self.conn.execute("""
-            SELECT * FROM domain_snapshots
+        row = self.conn.execute(f"""
+            SELECT {', '.join(SNAPSHOT_COLUMNS)} FROM domain_snapshots
             WHERE group_name = ?
             ORDER BY taken_at DESC
             LIMIT 1
@@ -298,16 +308,13 @@ class IdentityDatabase(BaseDatabase):
         if not row:
             return None
 
-        columns = ["snapshot_id", "taken_at", "group_name", "members", "member_count"]
-        result = dict(zip(columns, row))
-        if isinstance(result["members"], str):
-            result["members"] = json.loads(result["members"])
+        result = dict(zip(SNAPSHOT_COLUMNS, row))
         return result
 
     def get_previous_snapshot(self, group_name: str) -> dict | None:
         """Get the second-most-recent snapshot for diffing against the latest."""
-        rows = self.conn.execute("""
-            SELECT * FROM domain_snapshots
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(SNAPSHOT_COLUMNS)} FROM domain_snapshots
             WHERE group_name = ?
             ORDER BY taken_at DESC
             LIMIT 2
@@ -316,10 +323,7 @@ class IdentityDatabase(BaseDatabase):
         if len(rows) < 2:
             return None
 
-        columns = ["snapshot_id", "taken_at", "group_name", "members", "member_count"]
-        result = dict(zip(columns, rows[1]))
-        if isinstance(result["members"], str):
-            result["members"] = json.loads(result["members"])
+        result = dict(zip(SNAPSHOT_COLUMNS, rows[1]))
         return result
 
     # -------------------------------------------------------------------------
@@ -517,7 +521,7 @@ class IdentityDatabase(BaseDatabase):
         return json.loads(row[0]) if isinstance(row[0], str) else row[0] or []
 
     def get_recent_detections(self, limit: int = 50, severity: AlertSeverity | None = None) -> list[dict]:
-        query = "SELECT * FROM detections"
+        query = f"SELECT {', '.join(DETECTION_COLUMNS)} FROM detections"
         params: list = []
         if severity:
             query += " WHERE severity = ?"
@@ -526,13 +530,7 @@ class IdentityDatabase(BaseDatabase):
         params.append(limit)
 
         rows = self.conn.execute(query, params).fetchall()
-        columns = [
-            "detection_id", "detection_code", "engine_id", "timestamp",
-            "severity", "title", "description", "entity_id", "entity_type",
-            "evidence", "mitre_tactic", "mitre_technique", "status",
-            "risk_contribution", "created_at"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(DETECTION_COLUMNS, row)) for row in rows]
 
     def get_entities(self, limit: int = 200) -> list[dict]:
         """

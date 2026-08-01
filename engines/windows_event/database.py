@@ -4,6 +4,11 @@ database.py - DuckDB database layer for the Windows Event engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-12
+Updated : 2026-08-01 - Reads name their columns explicitly instead of using
+          SELECT * with a positional list. ALTER TABLE appends a new column
+          at the end while CREATE TABLE places it mid-list, so a positional
+          list silently misaligns on a migrated database - every value shifts
+          one field over and the failure surfaces somewhere unrelated.
 Purpose : Extends BaseDatabase with the Windows Event engine schema.
           Owns the windows_event.duckdb file. Defines all tables for
           raw events, normalized payloads, detections, and entity state.
@@ -37,6 +42,30 @@ from rexdr_core.schemas import (
 # ============================================================================
 
 logger = logging.getLogger(__name__)
+
+# Named explicitly so reads never depend on physical column order. These lists
+# are the single source of truth for both the SELECT and the resulting dict
+# keys, so the two cannot drift apart.
+DETECTION_COLUMNS = [
+    "detection_id", "detection_code", "engine_id", "timestamp",
+    "severity", "title", "description", "entity_id", "entity_type",
+    "evidence", "mitre_tactic", "mitre_technique", "status",
+    "risk_contribution", "created_at",
+]
+
+NORMALIZED_EVENT_COLUMNS = [
+    "event_id", "engine_id", "timestamp", "source_ip",
+    "destination_ip", "source_host", "destination_host",
+    "username", "event_type", "event_code", "description",
+    "raw_data", "zone_source", "zone_destination",
+    "is_cross_zone", "tags", "severity", "created_at",
+]
+
+RAW_EVENT_COLUMNS = [
+    "id", "target_host", "target_ip", "log_name", "event_id",
+    "time_created", "level", "provider_name", "computer",
+    "user_id", "message", "raw_xml", "received_at", "processed",
+]
 
 
 class WindowsEventDatabase(BaseDatabase):
@@ -396,7 +425,7 @@ class WindowsEventDatabase(BaseDatabase):
         severity: AlertSeverity | None = None,
     ) -> list[dict]:
         """Get recent detections, optionally filtered by severity."""
-        query = "SELECT * FROM detections"
+        query = f"SELECT {', '.join(DETECTION_COLUMNS)} FROM detections"
         params: list = []
 
         if severity:
@@ -407,48 +436,31 @@ class WindowsEventDatabase(BaseDatabase):
         params.append(limit)
 
         rows = self.query_all(query, params)
-        columns = [
-            "detection_id", "detection_code", "engine_id", "timestamp",
-            "severity", "title", "description", "entity_id", "entity_type",
-            "evidence", "mitre_tactic", "mitre_technique", "status",
-            "risk_contribution", "created_at"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(DETECTION_COLUMNS, row)) for row in rows]
 
     def get_recent_events(self, limit: int = 100) -> list[dict]:
         """Get recent normalized events for the API and frontend."""
-        rows = self.query_all("""
-            SELECT * FROM normalized_events
+        rows = self.query_all(f"""
+            SELECT {', '.join(NORMALIZED_EVENT_COLUMNS)} FROM normalized_events
             ORDER BY timestamp DESC
             LIMIT ?
         """, [limit])
-        columns = [
-            "event_id", "engine_id", "timestamp", "source_ip",
-            "destination_ip", "source_host", "destination_host",
-            "username", "event_type", "event_code", "description",
-            "raw_data", "zone_source", "zone_destination",
-            "is_cross_zone", "tags", "severity", "created_at"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+
+        return [dict(zip(NORMALIZED_EVENT_COLUMNS, row)) for row in rows]
 
     def get_unprocessed_raw_events(self, limit: int = 500) -> list[dict]:
         """
         Get raw events that have not yet been normalized.
         Called by the normalization pipeline on each processing cycle.
         """
-        rows = self.query_all("""
-            SELECT * FROM raw_events
+        rows = self.query_all(f"""
+            SELECT {', '.join(RAW_EVENT_COLUMNS)} FROM raw_events
             WHERE processed = FALSE
             ORDER BY time_created ASC
             LIMIT ?
         """, [limit])
 
-        columns = [
-            "id", "target_host", "target_ip", "log_name", "event_id",
-            "time_created", "level", "provider_name", "computer",
-            "user_id", "message", "raw_xml", "received_at", "processed"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(RAW_EVENT_COLUMNS, row)) for row in rows]
 
     def get_stats(self) -> dict:
         """Return engine statistics for the health endpoint and dashboard."""

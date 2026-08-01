@@ -4,6 +4,11 @@ database.py - DuckDB database layer for the Asset Discovery engine
 
 Author  : Rayyan Umair
 Date    : 2026-06-19
+Updated : 2026-08-01 - Reads name their columns explicitly instead of using
+          SELECT * with a positional list. ALTER TABLE appends a new column
+          at the end while CREATE TABLE places it mid-list, so a positional
+          list silently misaligns on a migrated database - every value shifts
+          one field over and the failure surfaces somewhere unrelated.
 Purpose : Extends BaseDatabase with the Asset Discovery engine schema.
           Owns the asset_discovery.duckdb file. Defines tables for
           discovered assets, scan history, detections, and entity
@@ -30,6 +35,22 @@ from rexdr_core.schemas import AlertSeverity, Detection, EntityType
 # ============================================================================
 
 logger = logging.getLogger(__name__)
+
+# Named explicitly so reads never depend on physical column order. These lists
+# are the single source of truth for both the SELECT and the resulting dict
+# keys, so the two cannot drift apart.
+ASSET_COLUMNS = [
+    "ip_address", "hostname", "mac_address", "os_fingerprint",
+    "open_ports", "services", "network_zone", "first_seen",
+    "last_seen", "is_known", "scan_count",
+]
+
+DETECTION_COLUMNS = [
+    "detection_id", "detection_code", "engine_id", "timestamp",
+    "severity", "title", "description", "entity_id", "entity_type",
+    "evidence", "mitre_tactic", "mitre_technique", "status",
+    "risk_contribution", "created_at",
+]
 
 
 class AssetDiscoveryDatabase(BaseDatabase):
@@ -293,37 +314,27 @@ class AssetDiscoveryDatabase(BaseDatabase):
 
     def get_all_assets(self) -> list[dict]:
         """Get the full current asset inventory."""
-        rows = self.conn.execute("""
-            SELECT * FROM assets ORDER BY last_seen DESC
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(ASSET_COLUMNS)} FROM assets ORDER BY last_seen DESC
         """).fetchall()
 
-        columns = [
-            "ip_address", "hostname", "mac_address", "os_fingerprint",
-            "open_ports", "services", "network_zone", "first_seen",
-            "last_seen", "is_known", "scan_count"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(ASSET_COLUMNS, row)) for row in rows]
 
     def get_asset(self, ip_address: str) -> dict | None:
         """Get a single asset by IP address."""
         row = self.conn.execute(
-            "SELECT * FROM assets WHERE ip_address = ?",
+            f"SELECT {', '.join(ASSET_COLUMNS)} FROM assets WHERE ip_address = ?",
             [ip_address]
         ).fetchone()
 
         if not row:
             return None
 
-        columns = [
-            "ip_address", "hostname", "mac_address", "os_fingerprint",
-            "open_ports", "services", "network_zone", "first_seen",
-            "last_seen", "is_known", "scan_count"
-        ]
-        return dict(zip(columns, row))
+        return dict(zip(ASSET_COLUMNS, row))
 
     def get_recent_detections(self, limit: int = 50, severity: AlertSeverity | None = None) -> list[dict]:
         """Get recent detections, optionally filtered by severity."""
-        query = "SELECT * FROM detections"
+        query = f"SELECT {', '.join(DETECTION_COLUMNS)} FROM detections"
         params: list = []
         if severity:
             query += " WHERE severity = ?"
@@ -332,13 +343,7 @@ class AssetDiscoveryDatabase(BaseDatabase):
         params.append(limit)
 
         rows = self.conn.execute(query, params).fetchall()
-        columns = [
-            "detection_id", "detection_code", "engine_id", "timestamp",
-            "severity", "title", "description", "entity_id", "entity_type",
-            "evidence", "mitre_tactic", "mitre_technique", "status",
-            "risk_contribution", "created_at"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(DETECTION_COLUMNS, row)) for row in rows]
 
     def get_stats(self) -> dict:
         """Return engine statistics."""
