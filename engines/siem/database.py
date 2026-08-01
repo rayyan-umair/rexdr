@@ -33,6 +33,12 @@ from rexdr_core.schemas import AttackChain, ChainSeverity, Detection
 
 logger = logging.getLogger(__name__)
 
+CHAIN_COLUMNS = [
+                "chain_id", "created_at", "updated_at", "severity", "title",
+                "narrative", "entity_id", "contributing_engines",
+                "detection_ids", "detection_codes", "mitre_tactics", "mitre_techniques",
+                "is_active", "is_contained", "case_file_id",
+            ]
 
 class SiemDatabase(BaseDatabase):
     """
@@ -42,10 +48,11 @@ class SiemDatabase(BaseDatabase):
     any other engine's database file. Cross-engine data is fetched via
     engine_client.py over HTTP instead.
     """
-
+    
     def __init__(self, data_dir) -> None:
         super().__init__(EngineID.SIEM, data_dir)
 
+    
     # -------------------------------------------------------------------------
     # Schema
     # -------------------------------------------------------------------------
@@ -81,6 +88,7 @@ class SiemDatabase(BaseDatabase):
                 entity_id             VARCHAR NOT NULL,
                 contributing_engines  JSON DEFAULT '[]',
                 detection_ids         JSON DEFAULT '[]',
+                detection_codes       JSON DEFAULT '[]',
                 mitre_tactics         JSON DEFAULT '[]',
                 mitre_techniques      JSON DEFAULT '[]',
                 is_active             BOOLEAN DEFAULT TRUE,
@@ -88,6 +96,12 @@ class SiemDatabase(BaseDatabase):
                 case_file_id          VARCHAR
             )
         """)
+
+        # Migration - chains predating playbook support carry no detection
+        # codes, which is what playbooks match on.
+        self.conn.execute(
+            "ALTER TABLE attack_chains ADD COLUMN IF NOT EXISTS detection_codes JSON DEFAULT '[]'"
+        )
 
         logger.info("SIEM engine schema initialized")
 
@@ -127,9 +141,9 @@ class SiemDatabase(BaseDatabase):
             INSERT INTO attack_chains (
                 chain_id, created_at, updated_at, severity, title,
                 narrative, entity_id, contributing_engines,
-                detection_ids, mitre_tactics, mitre_techniques,
+                detection_ids, detection_codes, mitre_tactics, mitre_techniques,
                 is_active, is_contained, case_file_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, [
             str(chain.chain_id),
             chain.created_at,
@@ -140,6 +154,7 @@ class SiemDatabase(BaseDatabase):
             chain.entity_id,
             json.dumps([e.value for e in chain.contributing_engines]),
             json.dumps([str(d.detection_id) for d in chain.detections]),
+            json.dumps(sorted({d.detection_code for d in chain.detections})),
             json.dumps(chain.mitre_tactics),
             json.dumps(chain.mitre_techniques),
             chain.is_active,
@@ -231,35 +246,21 @@ class SiemDatabase(BaseDatabase):
 
     def get_recent_chains(self, limit: int = 50) -> list[dict]:
         """Get recent attack chains."""
-        rows = self.conn.execute("""
-            SELECT * FROM attack_chains
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(CHAIN_COLUMNS)} FROM attack_chains
             ORDER BY created_at DESC
             LIMIT ?
         """, [limit]).fetchall()
-
-        columns = [
-            "chain_id", "created_at", "updated_at", "severity", "title",
-            "narrative", "entity_id", "contributing_engines",
-            "detection_ids", "mitre_tactics", "mitre_techniques",
-            "is_active", "is_contained", "case_file_id"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(CHAIN_COLUMNS, row)) for row in rows]
 
     def get_active_chains(self) -> list[dict]:
         """Get all currently active (uncontained) attack chains."""
-        rows = self.conn.execute("""
-            SELECT * FROM attack_chains
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(CHAIN_COLUMNS)} FROM attack_chains
             WHERE is_active = TRUE
             ORDER BY severity DESC, created_at DESC
         """).fetchall()
-
-        columns = [
-            "chain_id", "created_at", "updated_at", "severity", "title",
-            "narrative", "entity_id", "contributing_engines",
-            "detection_ids", "mitre_tactics", "mitre_techniques",
-            "is_active", "is_contained", "case_file_id"
-        ]
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(CHAIN_COLUMNS, row)) for row in rows]
 
     def chain_exists_for_entity(self, entity_id: str) -> bool:
         """Check if an active chain already exists for this entity."""

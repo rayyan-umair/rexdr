@@ -24,6 +24,7 @@ from pathlib import Path
 
 # -- Third Party -------------------------------------------------------------
 import yaml
+import json
 
 # -- Internal ----------------------------------------------------------------
 from response.config import settings
@@ -32,6 +33,23 @@ from response.config import settings
 
 logger = logging.getLogger(__name__)
 
+def parse_json_list(value) -> list:
+    """
+    Chain fields arrive as JSON-encoded strings from SIEM's API, not as
+    lists. Treating them as lists meant membership tests silently became
+    substring tests - 'T107' matched a chain containing 'T1071'.
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    if not isinstance(value, str):
+        return []
+    try:
+        parsed = json.loads(value)
+    except (ValueError, TypeError):
+        return []
+    return parsed if isinstance(parsed, list) else []
 
 class Playbook:
     """A loaded and parsed response playbook ready for matching and execution."""
@@ -65,8 +83,8 @@ class Playbook:
         if chain_rank < required_rank:
             return False
 
-        chain_codes = self._extract_detection_codes(chain)
-        chain_techniques = chain.get("mitre_techniques", [])
+        chain_codes = parse_json_list(chain.get("detection_codes"))
+        chain_techniques = parse_json_list(chain.get("mitre_techniques"))
 
         if self.match_detection_codes and any(c in chain_codes for c in self.match_detection_codes):
             return True
@@ -75,11 +93,6 @@ class Playbook:
             return True
 
         return False
-
-    def _extract_detection_codes(self, chain: dict) -> list[str]:
-        detections = chain.get("detections", [])
-        return [d.get("detection_code", "") for d in detections if isinstance(d, dict)]
-
 
 class PlaybookEngine:
     """

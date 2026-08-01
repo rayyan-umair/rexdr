@@ -1,0 +1,36 @@
+# =============================================================================
+# REXDR - Response Playbook
+# network-c2.yml
+#
+# Author  : Rayyan Umair
+# Date    : 2026-07-31
+# Purpose : Cross-engine command-and-control activity keyed on a network
+#           entity. Deliberately contains no AD lockdown actions - chains
+#           from network_flow, dns, and vulnerability are keyed on an IP
+#           address, and account containment needs an identity-keyed chain.
+# =============================================================================
+
+playbook_id: network-c2
+name: Network Command and Control
+
+match:
+  detection_codes:
+    - STRIKE-002
+    - DNS-001
+    - DNS-002
+    - DNS-003
+    - VULN-001
+  mitre_techniques:
+    - T1071
+    - T1071.004
+    - T1190
+  min_severity: high
+
+actions:
+  - type: alert_administrator
+    message: >-
+      Cross-engine command-and-control pattern confirmed against a network
+      entity. Review the chain narrative for the full detection sequence and
+      confirm whether the destination is expected before isolating the host.
+
+  - type: log_only

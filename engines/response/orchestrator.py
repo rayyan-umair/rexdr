@@ -20,6 +20,7 @@ GitHub  : github.com/rayyan-umair/rexdr
 # -- Standard Library --------------------------------------------------------
 import logging
 import uuid
+import ipaddress
 
 # -- Third Party -------------------------------------------------------------
 import httpx
@@ -221,6 +222,18 @@ class ResponseOrchestrator:
         entity_id: str,
     ) -> str:
         """Dispatch a single playbook action to the appropriate handler."""
+        ad_actions = ("disable_ad_account", "revoke_kerberos_tickets")
+
+        # Chains keyed on an IP cannot have AD actions applied - entity_id is
+        # passed straight through as the username, so this would try to
+        # disable an account literally named "192.168.3.130" and fail on every
+        # execution. Skip cleanly rather than logging a guaranteed failure.
+        if action_type in ad_actions and self._is_ip_entity(entity_id):
+            return (
+                f"Skipped '{action_type}' - entity '{entity_id}' is an IP address, "
+                f"not an AD account. This action requires an identity-keyed chain."
+            )
+
         if action_type == "disable_ad_account":
             success = await self.ad_lockdown.disable_account(entity_id)
             if success:
@@ -241,3 +254,14 @@ class ResponseOrchestrator:
             return f"Logged incident for entity '{entity_id}' - no automated containment configured."
 
         raise ValueError(f"Unknown action type: {action_type}")
+
+    @staticmethod
+    def _is_ip_entity(entity_id: str) -> bool:
+        """True when the entity is an IP address rather than an account name."""
+        try:
+            ipaddress.ip_address(entity_id)
+            return True
+        except ValueError:
+            return False
+
+    

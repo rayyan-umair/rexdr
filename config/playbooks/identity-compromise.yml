@@ -1,0 +1,38 @@
+# =============================================================================
+# REXDR - Response Playbook
+# identity-compromise.yml
+#
+# Author  : Rayyan Umair
+# Date    : 2026-07-31
+# Purpose : Credential and privilege abuse keyed on an AD account. This is the
+#           only playbook that performs real containment, and it only fires on
+#           identity-sourced detections where entity_id is genuinely a
+#           username. min_severity is critical so it cannot fire on routine
+#           high-severity identity noise.
+# =============================================================================
+
+playbook_id: identity-compromise
+name: Identity Compromise Containment
+
+match:
+  detection_codes:
+    - AD-001
+    - AD-002
+    - AD-004
+  mitre_techniques:
+    - T1558
+    - T1558.003
+    - T1558.004
+    - T1098
+    - T1484.001
+  min_severity: critical
+
+actions:
+  - type: alert_administrator
+    message: >-
+      Privileged identity abuse confirmed across multiple engines. Automated
+      containment is executing against this account.
+
+  - type: disable_ad_account
+
+  - type: revoke_kerberos_tickets
