@@ -51,18 +51,6 @@ volumes:
   rexdr_cases:
     driver: local
 
-# ---------------------------------------------------------------------------
-  # Shared core base image - builds rexdr_core from source. Every Python engine
-  # builds FROM this, so the library can never drift from its source.
-  # Not a running service; it exists only to be built.
-  # ---------------------------------------------------------------------------
-  rexdr-base:
-    build:
-      context: ./core-shared
-      dockerfile: Dockerfile
-    image: rexdr-base:1.0.0
-    profiles: ["build-only"]
-
 # =============================================================================
 # Common configuration anchors
 #
@@ -101,6 +89,18 @@ x-common-engine: &common-engine
 # =============================================================================
 
 services:
+
+# ---------------------------------------------------------------------------
+  # Shared core base image - builds rexdr_core from source. Every Python engine
+  # builds FROM this, so the library can never drift from its source.
+  # Not a running service; it exists only to be built.
+  # ---------------------------------------------------------------------------
+  rexdr-base:
+    build:
+      context: ./core-shared
+      dockerfile: Dockerfile
+    image: rexdr-base:1.0.0
+    profiles: ["build-only"]
 
   # ---------------------------------------------------------------------------
   # Windows Event Intelligence Engine
