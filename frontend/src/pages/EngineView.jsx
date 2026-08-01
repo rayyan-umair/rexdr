@@ -26,7 +26,7 @@
 
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, Server, GitBranch, Briefcase } from "lucide-react";
+import { AlertTriangle, Server, GitBranch, Briefcase, Users } from "lucide-react";
 import { colors, ENGINES } from "../design/tokens";
 import { usePolling } from "../hooks/usePolling";
 import { useLiveStream } from "../hooks/useLiveStream";
@@ -102,9 +102,16 @@ export default function EngineView({ onAskAI }) {
   const isAssetDiscovery = engineId === "asset_discovery";
   const isSiem = engineId === "siem";
   const isResponse = engineId === "response";
+  const isIdentity = engineId === "identity";
 
   const { data: assetsData } = usePolling(
     () => (isAssetDiscovery ? client.assets() : Promise.resolve({ assets: [] })),
+    20000,
+    [engineId]
+  );
+
+  const { data: entitiesData } = usePolling(
+    () => (isIdentity ? client.entities(200) : Promise.resolve({ entities: [] })),
     20000,
     [engineId]
   );
@@ -130,6 +137,7 @@ export default function EngineView({ onAskAI }) {
   const assets = assetsData?.assets || [];
   const chains = chainsData?.chains || [];
   const cases = casesData?.cases || [];
+  const entities = entitiesData?.entities || [];
 
   return (
     <div style={{ display: "flex", height: "100%" }}>
@@ -161,6 +169,8 @@ export default function EngineView({ onAskAI }) {
         </div>
 
         {isAssetDiscovery && <AssetsPanel assets={assets} />}
+
+        {isIdentity && <EntitiesPanel entities={entities} />}
 
         {isSiem && (
           <ChainsPanel
@@ -482,6 +492,126 @@ function CasesPanel({ cases, onSelect }) {
               </span>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Identity - tracked account observations
+// -----------------------------------------------------------------------------
+
+function EntitiesPanel({ entities }) {
+  return (
+    <div style={{ padding: "0 20px 20px" }}>
+      <div
+        style={{
+          fontSize: "12px",
+          fontWeight: 700,
+          color: colors.textTertiary,
+          letterSpacing: "0.05em",
+          marginBottom: "12px",
+        }}
+      >
+        TRACKED ACCOUNTS
+      </div>
+
+      {entities.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="No accounts tracked yet"
+          description="Accounts appear here once the engine has processed authentication activity for them."
+        />
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+            <thead>
+              <tr style={{ borderBottom: `1px solid ${colors.border}` }}>
+                {["Account", "Risk", "Events", "Detections", "Latest", "Known Groups", "Auth Hosts", "Last Seen"].map(
+                  (h) => (
+                    <th
+                      key={h}
+                      style={{
+                        textAlign: "left",
+                        padding: "8px 12px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: colors.textTertiary,
+                        letterSpacing: "0.03em",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  )
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {entities.map((e) => {
+                const flags = safeParse(e.behavioral_flags, []);
+                const groups = safeParse(e.known_groups, []);
+                const hosts = safeParse(e.known_auth_hosts, []);
+                const risk = Number(e.risk_contribution) || 0;
+
+                return (
+                  <tr
+                    key={e.entity_id}
+                    style={{ borderBottom: `1px solid ${colors.border}` }}
+                    onMouseEnter={(ev) => (ev.currentTarget.style.background = colors.surface)}
+                    onMouseLeave={(ev) => (ev.currentTarget.style.background = "transparent")}
+                  >
+                    <td style={{ padding: "10px 12px", fontFamily: "'JetBrains Mono', monospace", color: colors.textPrimary, whiteSpace: "nowrap" }}>
+                      {e.entity_id}
+                    </td>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                      <span
+                        style={{
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                          color: risk >= 0.7 ? colors.critical : risk > 0 ? colors.medium : colors.textTertiary,
+                        }}
+                      >
+                        {risk.toFixed(2)}
+                      </span>
+                    </td>
+                    <td style={{ padding: "10px 12px", color: colors.textSecondary, textAlign: "right" }}>
+                      {e.event_count}
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: e.detection_count > 0 ? colors.critical : colors.textTertiary }}>
+                      {e.detection_count}
+                    </td>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>
+                      {e.latest_detection ? (
+                        <span style={{ fontSize: "11px", fontFamily: "'JetBrains Mono', monospace", color: colors.textSecondary }}>
+                          {e.latest_detection}
+                        </span>
+                      ) : (
+                        <span style={{ color: colors.textTertiary }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: colors.textSecondary, fontSize: "12px" }}>
+                      {groups.length > 0 ? groups.join(", ") : <span style={{ color: colors.textTertiary }}>—</span>}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: colors.textSecondary, fontSize: "12px" }}>
+                      {hosts.length > 0 ? (
+                        <span title={hosts.join(", ")}>
+                          {hosts.slice(0, 3).join(", ")}
+                          {hosts.length > 3 ? ` +${hosts.length - 3}` : ""}
+                        </span>
+                      ) : (
+                        <span style={{ color: colors.textTertiary }}>—</span>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: colors.textTertiary, whiteSpace: "nowrap" }}>
+                      {e.last_seen && formatDistanceToNow(new Date(e.last_seen), { addSuffix: true })}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

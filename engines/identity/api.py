@@ -62,6 +62,11 @@ class DetectionsResponse(BaseModel):
     detections: list[dict[str, Any]]
     timestamp:  datetime
 
+class EntitiesResponse(BaseModel):
+    engine:    str
+    count:     int
+    entities:  list[dict[str, Any]]
+    timestamp: datetime
 
 class StatsResponse(BaseModel):
     engine:    str
@@ -191,6 +196,27 @@ def create_app(db: IdentityDatabase) -> FastAPI:
             count      = len(detections),
             detections = detections,
             timestamp  = datetime.utcnow(),
+        )
+
+    # -------------------------------------------------------------------------
+    # Entities
+    # -------------------------------------------------------------------------
+
+    @app.get("/entities", response_model=EntitiesResponse, tags=["Entities"])
+    async def get_entities(limit: int = 200) -> EntitiesResponse:
+        """
+        Get every account this engine is tracking, highest risk first,
+        including group membership and authentication history.
+        """
+        if limit > 1000:
+            raise HTTPException(status_code=400, detail="Limit cannot exceed 1000.")
+
+        entities = db.get_entities(limit=limit)
+        return EntitiesResponse(
+            engine    = EngineID.IDENTITY.value,
+            count     = len(entities),
+            entities  = entities,
+            timestamp = datetime.utcnow(),
         )
 
     # -------------------------------------------------------------------------

@@ -31,6 +31,14 @@ from rexdr_core.schemas import AlertSeverity, Detection, EntityType, NormalizedT
 
 logger = logging.getLogger(__name__)
 
+# Named explicitly so reads never depend on physical column order - ALTER
+# TABLE appends at the end while CREATE TABLE places a column mid-list, and
+# a positional mismatch fails silently rather than loudly.
+ENTITY_COLUMNS = [
+    "entity_id", "entity_type", "last_seen", "event_count",
+    "detection_count", "risk_contribution", "behavioral_flags",
+    "latest_detection", "known_groups", "known_auth_hosts", "updated_at",
+]
 
 class IdentityDatabase(BaseDatabase):
     """
@@ -426,6 +434,34 @@ class IdentityDatabase(BaseDatabase):
             "risk_contribution", "created_at"
         ]
         return [dict(zip(columns, row)) for row in rows]
+
+    def get_entities(self, limit: int = 200) -> list[dict]:
+        """
+        Get tracked entity observations, highest risk first. This is the
+        Identity engine's equivalent of asset-discovery's inventory - the
+        accounts the engine has actually seen, what groups they belong to,
+        and where they have authenticated from.
+        """
+        rows = self.conn.execute(f"""
+            SELECT {', '.join(ENTITY_COLUMNS)} FROM entity_observations
+            ORDER BY risk_contribution DESC, last_seen DESC
+            LIMIT ?
+        """, [limit]).fetchall()
+
+        results = [dict(zip(ENTITY_COLUMNS, row)) for row in rows]
+
+        for entity in results:
+            for field in ("behavioral_flags", "known_groups", "known_auth_hosts"):
+                value = entity.get(field)
+                if isinstance(value, str):
+                    try:
+                        entity[field] = json.loads(value)
+                    except (ValueError, TypeError):
+                        entity[field] = []
+                elif value is None:
+                    entity[field] = []
+
+        return results
 
     def get_stats(self) -> dict:
         total_events = self.conn.execute("SELECT COUNT(*) FROM normalized_events").fetchone()[0]
