@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 # -- Internal ----------------------------------------------------------------
 from rexdr_core.identity import METADATA, VERSION, EngineID
-from rexdr_core.schemas import AlertSeverity
+from rexdr_core.schemas import AlertSeverity, DetectionStatus
 from asset_discovery.config import settings
 from asset_discovery.database import AssetDiscoveryDatabase
 
@@ -58,6 +58,9 @@ class DetectionsResponse(BaseModel):
     count:      int
     detections: list[dict[str, Any]]
     timestamp:  datetime
+
+class StatusUpdateRequest(BaseModel):
+    status: DetectionStatus
 
 
 class StatsResponse(BaseModel):
@@ -162,6 +165,19 @@ def create_app(db: AssetDiscoveryDatabase) -> FastAPI:
             detections = detections,
             timestamp  = datetime.utcnow(),
         )
+
+    @app.patch("/detections/{detection_id}", tags=["Detections"])
+    async def update_detection(detection_id: str, body: StatusUpdateRequest) -> dict:
+        """
+        Update a detection's status. Marking one false_positive is how an
+        analyst clears benign noise - the record is kept for audit, but every
+        open-detection count stops including it.
+        """
+        updated = db.update_detection_status(detection_id, body.status.value)
+        if not updated:
+            raise HTTPException(status_code=404, detail=f"Detection {detection_id} not found.")
+        return {"detection_id": detection_id, "status": body.status.value}
+
 
     @app.get("/stats", response_model=StatsResponse, tags=["Platform"])
     async def get_stats() -> StatsResponse:

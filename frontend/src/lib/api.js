@@ -10,6 +10,13 @@
  *           was excluded, so the aggregate call threw a TypeError on
  *           siem.detections() and silently returned nothing for every
  *           engine after it in iteration order.
+ * Updated : 2026-08-01 - Added updateDetection() to every engine that owns
+ *           a detections table. Marking one false_positive is how an analyst
+ *           clears benign noise - stats and list endpoints already filter on
+ *           status = 'open', so a triaged detection drops out of every tally,
+ *           the alert badge and the risk board while staying on record.
+ *           Deliberately absent from siem and response, which have no
+ *           detections of their own.
  * Purpose : Single client for talking to every REXDR engine API. Routes
  *           through the Nginx gateway in production so the browser only
  *           ever talks to one origin. In local dev, Vite's proxy or
@@ -42,6 +49,11 @@ export const windowsEvent = {
   events:     (limit = 100) => request(`/windows-event/events?limit=${limit}`),
   detections: (limit = 50, severity) =>
     request(`/windows-event/detections?limit=${limit}${severity ? `&severity=${severity}` : ""}`),
+  updateDetection: (detectionId, status) =>
+    request(`/windows-event/detections/${detectionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
   stats:      () => request("/windows-event/stats"),
 };
 
@@ -51,6 +63,11 @@ export const networkFlow = {
   flows:      (limit = 100) => request(`/network-flow/flows?limit=${limit}`),
   detections: (limit = 50, severity) =>
     request(`/network-flow/detections?limit=${limit}${severity ? `&severity=${severity}` : ""}`),
+  updateDetection: (detectionId, status) =>
+    request(`/network-flow/detections/${detectionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
   stats:      () => request("/network-flow/stats"),
 };
 
@@ -76,6 +93,11 @@ export const dns = {
   queries:    (limit = 100) => request(`/dns/queries?limit=${limit}`),
   detections: (limit = 50, severity) =>
     request(`/dns/detections?limit=${limit}${severity ? `&severity=${severity}` : ""}`),
+  updateDetection: (detectionId, status) =>
+    request(`/dns/detections/${detectionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
   stats:      () => request("/dns/stats"),
 };
 
@@ -84,6 +106,11 @@ export const identity = {
   health:     () => request("/identity/health"),
   detections: (limit = 50, severity) =>
     request(`/identity/detections?limit=${limit}${severity ? `&severity=${severity}` : ""}`),
+  updateDetection: (detectionId, status) =>
+    request(`/identity/detections/${detectionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
   stats:      () => request("/identity/stats"),
   entities:   (limit = 200) => request(`/identity/entities?limit=${limit}`),
   computers:  (limit = 500) => request(`/identity/computers?limit=${limit}`),
@@ -111,6 +138,11 @@ export const assetDiscovery = {
   asset:      (ip) => request(`/asset-discovery/assets/${ip}`),
   detections: (limit = 50, severity) =>
     request(`/asset-discovery/detections?limit=${limit}${severity ? `&severity=${severity}` : ""}`),
+  updateDetection: (detectionId, status) =>
+    request(`/asset-discovery/detections/${detectionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
   stats:      () => request("/asset-discovery/stats"),
 };
 
@@ -121,6 +153,11 @@ export const vulnerability = {
   assetVulns:       (ip) => request(`/vulnerability/vulnerabilities/${ip}`),
   detections:       (limit = 50, severity) =>
     request(`/vulnerability/detections?limit=${limit}${severity ? `&severity=${severity}` : ""}`),
+  updateDetection:  (detectionId, status) =>
+    request(`/vulnerability/detections/${detectionId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
   stats:            () => request("/vulnerability/stats"),
 };
 

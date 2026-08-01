@@ -252,6 +252,28 @@ class AssetDiscoveryDatabase(BaseDatabase):
             detection.detection_code, detection.entity_id, detection.severity.value,
         )
 
+    def update_detection_status(self, detection_id: str, status: str) -> bool:
+        """
+        Update a detection's lifecycle status. Returns False if the detection
+        does not exist. Stats and list endpoints filter on status = 'open', so
+        marking one false_positive removes it from every tally, the alert
+        badge and the risk board without deleting the record.
+        """
+        existing = self.conn.execute(
+            "SELECT COUNT(*) FROM detections WHERE detection_id = ?",
+            [detection_id]
+        ).fetchone()
+
+        if not existing or existing[0] == 0:
+            return False
+
+        self.conn.execute(
+            "UPDATE detections SET status = ? WHERE detection_id = ?",
+            [status, detection_id]
+        )
+        logger.info("Detection status updated - id=%s status=%s", detection_id, status)
+        return True
+
     # -------------------------------------------------------------------------
     # Entity observation writes
     # -------------------------------------------------------------------------

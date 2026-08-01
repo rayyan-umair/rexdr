@@ -31,10 +31,10 @@
  */
 
 import { useState } from "react";
-import { X, Clock, Target, AlertCircle, ListChecks, Sparkles, Layers, GitBranch, CheckCircle2 } from "lucide-react";
+import { X, Clock, Target, AlertCircle, ListChecks, Sparkles, Layers, GitBranch, CheckCircle2, Check } from "lucide-react";
 import { format } from "date-fns";
 import { colors } from "../../design/tokens";
-import { response } from "../../lib/api";
+import { response, ENGINE_CLIENTS } from "../../lib/api";
 import SeverityBadge from "../Shared/SeverityBadge";
 import EngineBadge from "../Shared/EngineBadge";
 
@@ -50,7 +50,7 @@ function safeParseArray(value) {
   }
 }
 
-export default function InvestigationBlade({ item, onClose, onAskAI }) {
+export default function InvestigationBlade({ item, onClose, onAskAI, onDetectionTriaged }) {
   if (!item) return null;
 
   const data = item.data || item;
@@ -111,7 +111,14 @@ export default function InvestigationBlade({ item, onClose, onAskAI }) {
         )}
       </div>
 
-      <div style={{ padding: "16px 20px", borderTop: `1px solid ${colors.border}` }}>
+      <div style={{ padding: "16px 20px", borderTop: `1px solid ${colors.border}`, display: "flex", flexDirection: "column", gap: "8px" }}>
+        {!isChain && !isCase && !isEntity && data.detection_id && (
+          <TriageButton
+            detection={data}
+            sourceEngine={item.sourceEngine}
+            onTriaged={onDetectionTriaged}
+          />
+        )}
         <button
           onClick={() => onAskAI?.(item)}
           style={{
@@ -455,5 +462,86 @@ function EntitySection({ entity }) {
         </Section>
       )}
     </>
+  );
+}
+
+function TriageButton({ detection, sourceEngine, onTriaged }) {
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(detection.status === "false_positive");
+  const [error, setError] = useState(null);
+
+  async function markBenign() {
+    const client = ENGINE_CLIENTS[sourceEngine];
+    if (!client?.updateDetection) {
+      setError("This engine does not support triage.");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    try {
+      await client.updateDetection(detection.detection_id, "false_positive");
+      setDone(true);
+      onTriaged?.(detection.detection_id);
+    } catch (e) {
+      setError(e.message || "Could not update this detection.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px",
+          padding: "11px",
+          borderRadius: "10px",
+          background: `${colors.success}15`,
+          border: `1px solid ${colors.success}44`,
+          color: colors.success,
+          fontSize: "13px",
+          fontWeight: 600,
+        }}
+      >
+        <Check size={15} />
+        Marked benign
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        onClick={markBenign}
+        disabled={saving}
+        title="Mark this detection as a false positive. It stays on record but drops out of open counts, the alert badge and the risk board."
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px",
+          padding: "11px",
+          borderRadius: "10px",
+          background: colors.surfaceRaised,
+          border: `1px solid ${colors.success}44`,
+          color: colors.success,
+          fontSize: "13px",
+          fontWeight: 600,
+          cursor: saving ? "default" : "pointer",
+        }}
+      >
+        <Check size={15} />
+        {saving ? "Saving..." : "Mark benign"}
+      </button>
+      {error && (
+        <div style={{ fontSize: "12px", color: colors.critical, marginTop: "6px" }}>{error}</div>
+      )}
+    </div>
   );
 }

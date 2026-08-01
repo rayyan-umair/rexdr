@@ -31,7 +31,7 @@ from pydantic import BaseModel
 # -- Internal ----------------------------------------------------------------
 from rexdr_core.entity_store import EntityStore
 from rexdr_core.identity import EngineID, VERSION
-from rexdr_core.schemas import EngineObservation, EntityType
+from rexdr_core.schemas import EngineObservation, EntityType, DetectionStatus
 
 # ============================================================================
 

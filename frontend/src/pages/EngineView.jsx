@@ -26,7 +26,7 @@
 
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { AlertTriangle, Server, GitBranch, Briefcase, Users, Monitor } from "lucide-react";
+import { AlertTriangle, Server, GitBranch, Briefcase, Users, Monitor, Check } from "lucide-react";
 import { colors, ENGINES } from "../design/tokens";
 import { usePolling } from "../hooks/usePolling";
 import { useLiveStream } from "../hooks/useLiveStream";
@@ -82,6 +82,7 @@ export default function EngineView({ onAskAI }) {
   const client = ENGINE_CLIENTS[engineId];
   const [selected, setSelected] = useState(null);
   const [casesRefreshKey, setCasesRefreshKey] = useState(0);
+  const [triagedIds, setTriagedIds] = useState(() => new Set());
 
   const { data: statsData } = usePolling(
     () => client.stats(),
@@ -134,12 +135,21 @@ export default function EngineView({ onAskAI }) {
     [engineId, casesRefreshKey]
   );
 
+  function handleTriaged(detectionId) {
+    setTriagedIds((prev) => new Set(prev).add(detectionId));
+    setSelected(null);
+  }
+
   if (!engine) {
     return <EmptyState icon={AlertTriangle} title="Unknown engine" />;
   }
 
   const stats = statsData?.stats || {};
-  const detections = detectionsData?.detections || [];
+  // Hide anything triaged in this session immediately - the poll would
+  // otherwise leave the row visible for up to 20 seconds after the click.
+  const detections = (detectionsData?.detections || []).filter(
+    (d) => !triagedIds.has(d.detection_id)
+  );
   const assets = assetsData?.assets || [];
   const chains = chainsData?.chains || [];
   const cases = casesData?.cases || [];
@@ -258,6 +268,11 @@ export default function EngineView({ onAskAI }) {
                     <span style={{ fontSize: "11px", color: colors.textTertiary, flexShrink: 0 }}>
                       {d.timestamp && formatDistanceToNow(new Date(d.timestamp), { addSuffix: true })}
                     </span>
+                    <TriageTick
+                      detection={d}
+                      sourceEngine={engineId}
+                      onTriaged={handleTriaged}
+                    />
                   </div>
                 ))}
               </div>
@@ -271,6 +286,7 @@ export default function EngineView({ onAskAI }) {
           item={selected}
           onClose={() => setSelected(null)}
           onAskAI={onAskAI}
+          onDetectionTriaged={handleTriaged}
         />
       )}
     </div>
@@ -749,5 +765,60 @@ function ComputersPanel({ computers }) {
         </div>
       )}
     </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Inline triage control - mark a detection benign without opening the blade
+// -----------------------------------------------------------------------------
+
+function TriageTick({ detection, sourceEngine, onTriaged }) {
+  const [saving, setSaving] = useState(false);
+
+  async function markBenign(e) {
+    // The row itself opens the investigation blade - triaging should not.
+    e.stopPropagation();
+
+    const client = ENGINE_CLIENTS[sourceEngine];
+    if (!client?.updateDetection || saving) return;
+
+    setSaving(true);
+    try {
+      await client.updateDetection(detection.detection_id, "false_positive");
+      onTriaged?.(detection.detection_id);
+    } catch {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={markBenign}
+      disabled={saving}
+      title="Mark benign - keeps the record but drops it from open counts"
+      style={{
+        flexShrink: 0,
+        width: "24px",
+        height: "24px",
+        borderRadius: "6px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "transparent",
+        border: `1px solid ${colors.border}`,
+        color: colors.textTertiary,
+        cursor: saving ? "default" : "pointer",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.color = colors.success;
+        e.currentTarget.style.borderColor = `${colors.success}66`;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.color = colors.textTertiary;
+        e.currentTarget.style.borderColor = colors.border;
+      }}
+    >
+      <Check size={13} />
+    </button>
   );
 }
