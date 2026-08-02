@@ -1,13 +1,24 @@
-# REXDR
+<div align="center">
 
-**Real-time Extended Detection & Response**
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=2,12,20&height=160&section=header&text=REXDR&fontSize=64&fontColor=ffffff&fontAlignY=62&desc=Real-time%20Extended%20Detection%20%26%20Response&descSize=16&descAlignY=84&animation=fadeIn" width="100%"/>
 
-A self-hosted XDR platform. Eight detection engines share one entity model and correlate each other's findings in real time, so activity that looks harmless in isolation surfaces as a single attack chain with a written narrative, MITRE mapping, and an auto-generated case file.
+<br/>
 
-![Status](https://img.shields.io/badge/status-working-22c55e?style=flat-square)
-![Python](https://img.shields.io/badge/Python-3.11-4a9eff?style=flat-square)
-![Go](https://img.shields.io/badge/Go-1.21-00d4aa?style=flat-square)
-![Docker](https://img.shields.io/badge/Docker-Compose-7b8cde?style=flat-square)
+[![Status](https://img.shields.io/badge/Status-Working-22c55e?style=for-the-badge)](/)
+[![Python](https://img.shields.io/badge/Python-3.11-4a9eff?style=for-the-badge&logo=python&logoColor=white)](/)
+[![Go](https://img.shields.io/badge/Go-1.21-00d4aa?style=for-the-badge&logo=go&logoColor=white)](/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-7b8cde?style=for-the-badge&logo=docker&logoColor=white)](/)
+[![React](https://img.shields.io/badge/React-Vite-4a9eff?style=for-the-badge&logo=react&logoColor=white)](/)
+
+**Eight detection engines. One entity model. One investigation.**
+
+</div>
+
+---
+
+## Overview
+
+A self-hosted XDR platform. Eight detection engines share a single entity model and correlate each other's findings in real time, so activity that looks harmless in isolation surfaces as one attack chain with a written narrative, MITRE mapping, and an auto-generated case file.
 
 ---
 
@@ -40,55 +51,53 @@ Two supporting services sit alongside them: **entity-store**, a standalone servi
 
 ## Detection coverage
 
-Twenty-one detections across five engines, each mapped to a MITRE ATT&CK technique. Detections marked **✓** have fired against live activity in the validation lab.
+Twenty-one detections across five engines, each mapped to a MITRE ATT&CK technique.
 
 ### Windows events
 
-| Detection | Technique | Fired |
-|:---|:---|:---:|
-| Brute Force Attack | T1110 | |
-| Pass-the-Hash | T1550.002 | |
-| Lateral Movement | T1021 | |
-| Privilege Escalation | T1078 | |
-| Suspicious Service Installation | T1543.003 | ✓ |
+| Detection | Technique |
+|:---|:---|
+| Brute Force Attack | T1110 |
+| Pass-the-Hash | T1550.002 |
+| Lateral Movement | T1021 |
+| Privilege Escalation | T1078 |
+| Suspicious Service Installation | T1543.003 |
 
 ### Network flow
 
-| Detection | Technique | Fired |
-|:---|:---|:---:|
-| Port Scan | T1046 | |
-| Beaconing | T1071 | ✓ |
-| High Outbound Transfer | T1041 | |
-| Internal Pivot | T1021 | |
-| Known-Bad Destination Contacted | T1071 | |
+| Detection | Technique |
+|:---|:---|
+| Port Scan | T1046 |
+| Beaconing | T1071 |
+| High Outbound Transfer | T1041 |
+| Internal Pivot | T1021 |
+| Known-Bad Destination Contacted | T1071 |
 
 ### DNS
 
-| Detection | Technique | Fired |
-|:---|:---|:---:|
-| High Entropy Subdomain | T1568.002 | ✓ |
-| DNS Record Type Frequency Spike | T1071.004 | ✓ |
-| DNS Beaconing | T1071.004 | |
-| NXDOMAIN Storm | T1568.002 | ✓ |
-| Rare TLD Anomaly | T1583.001 | |
+| Detection | Technique |
+|:---|:---|
+| High Entropy Subdomain | T1568.002 |
+| DNS Record Type Frequency Spike | T1071.004 |
+| DNS Beaconing | T1071.004 |
+| NXDOMAIN Storm | T1568.002 |
+| Rare TLD Anomaly | T1583.001 |
 
 ### Active Directory
 
-| Detection | Technique | Fired |
-|:---|:---|:---:|
-| Kerberoasting | T1558.003 | |
-| AS-REP Roasting | T1558.004 | |
-| Group Membership Drift | T1098 | ✓ |
-| Anomalous Authentication | T1078 | |
-| ACL Abuse | T1484.001 | |
+| Detection | Technique |
+|:---|:---|
+| Kerberoasting | T1558.003 |
+| AS-REP Roasting | T1558.004 |
+| Group Membership Drift | T1098 |
+| Anomalous Authentication | T1078 |
+| ACL Abuse | T1484.001 |
 
 ### Vulnerability
 
-| Detection | Technique | Fired |
-|:---|:---|:---:|
-| Critical Vulnerability Exposure | T1190 | ✓ |
-
-Detections that have not fired are implemented and waiting on the conditions that trigger them — the validation lab simply has not produced that activity yet.
+| Detection | Technique |
+|:---|:---|
+| Critical Vulnerability Exposure | T1190 |
 
 ---
 
@@ -224,14 +233,22 @@ Working and validated. All eight engines run against live activity, produce dete
 
 ---
 
+<div align="center">
+
 ## Author
 
 **Rayyan Umair** — IT Support · Cybersecurity · Building toward Security Architecture
 
-[rayyanxumair@gmail.com](mailto:rayyanxumair@gmail.com) · [linkedin.com/in/rayyanumair](https://www.linkedin.com/in/rayyanumair/) · [rayyan-umair.github.io](https://rayyan-umair.github.io/)
+[![Portfolio](https://img.shields.io/badge/Portfolio-rayyan--umair.github.io-4a9eff?style=for-the-badge)](https://rayyan-umair.github.io/)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0a66c2?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/rayyanumair/)
+[![Email](https://img.shields.io/badge/Email-rayyanxumair%40gmail.com-00d4aa?style=for-the-badge)](mailto:rayyanxumair@gmail.com)
 
----
+<br/>
 
 REXDR is proprietary software. All rights reserved. © 2026 Rayyan Umair
 
 *"Technology evolves quickly. Responsibility does not."*
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=2,12,20&height=90&section=footer" width="100%"/>
+
+</div>
